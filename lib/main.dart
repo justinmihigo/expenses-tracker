@@ -1,8 +1,9 @@
+import 'package:expenses_tracker/api/firebase_api.dart';
 import 'package:expenses_tracker/auth/login.dart';
+import 'package:expenses_tracker/auth/signup.dart';
 import 'package:expenses_tracker/firebase_options.dart';
-import 'package:expenses_tracker/sqlite.dart';
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:expenses_tracker/pages/onboarding/first_screen.dart';
+import 'package:expenses_tracker/styles/app_colors.dart';
 import 'package:expenses_tracker/tabs/add_expense.dart';
 import 'package:expenses_tracker/tabs/analytics.dart';
 import 'package:expenses_tracker/tabs/home.dart';
@@ -11,36 +12,82 @@ import 'package:expenses_tracker/tabs/second_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:expenses_tracker/tabs/wallet.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-
+final navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await FirebaseApi().firebaseInit();
+  final prefs = await SharedPreferences.getInstance();
 
+  final hasSeenOnBoarding = prefs.getBool("hasSeenOnBoarding") ?? false;
+  debugPrint("onboarding $hasSeenOnBoarding");
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (context) => CounterProvider()),
         Provider(create: (context) => SecondScreen()),
       ],
-      child: const MyApp(),
+      child: MyApp(hasSeenOnBoarding: hasSeenOnBoarding),
     ),
   );
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final bool hasSeenOnBoarding;
+  const MyApp({super.key, required this.hasSeenOnBoarding});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+    final ThemeData appTheme = ThemeData(
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ButtonStyle(
+          padding: WidgetStateProperty.all<EdgeInsetsGeometry>(
+            EdgeInsets.all(20),
+          ),
+          backgroundColor: WidgetStateProperty.all<Color>(AppColors.secondary),
+          foregroundColor: WidgetStateProperty.all<Color>(AppColors.primary),
+          fixedSize: WidgetStateProperty.all<Size>(
+            Size.fromWidth(MediaQuery.of(context).size.width * 0.8),
+          ),
+        ),
       ),
-      home: const MyHomePage(title: 'Home'),
+      fontFamily: "Poppins", // This should apply to all text
+      primaryColor: AppColors.secondary,
+      colorScheme: ColorScheme.light(
+        primary: AppColors.secondary,
+        onPrimary: AppColors.secondary,
+        secondary: AppColors.accent,
+        onSecondary: AppColors.primary,
+        error: AppColors.errorColor,
+        onError: AppColors.primary,
+        surface: AppColors.primary,
+        onSurface: AppColors.secondary,
+      ),
+      textTheme: TextTheme(
+        displayMedium: TextStyle(fontSize: 15, color: AppColors.secondary),
+        titleSmall: TextStyle(
+          fontSize: 12,
+          color: AppColors.secondary,
+          fontWeight: FontWeight.bold,
+        ),
+        titleLarge: TextStyle(fontSize: 20, color: AppColors.secondary),
+        bodyMedium: TextStyle(fontSize: 15, color: AppColors.secondary),
+      ),
+    );
+
+    return MaterialApp(
+      title: 'Expense tracker',
+      debugShowCheckedModeBanner: false,
+      navigatorKey: navigatorKey,
+      routes: {SignupScreen.route: (context) => const SignupScreen()},
+      theme: appTheme,
+      home:
+          // hasSeenOnBoarding
+          //     ? const MyHomePage(title: 'Home')
+          //     :
+          const FirstScreen(),
     );
   }
 }
@@ -48,7 +95,6 @@ class MyApp extends StatelessWidget {
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
   final String title;
-
   @override
   State<MyHomePage> createState() => _MyHomePageState();
 }
@@ -56,7 +102,7 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
-    Sqlite().firebaseInit();
+    FirebaseApi().firebaseInit();
     super.initState();
   }
 
@@ -65,24 +111,34 @@ class _MyHomePageState extends State<MyHomePage> {
     HomePage(),
     AnalyticsScreen(),
     LoginScreen(),
-    WalletScreen(), // Wallet screen added
     ProfileScreen(),
   ];
+  // void _incrementCounter() {
+  //   setState(() {
+  //     _counter++;
+  //   });
+  // }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // appBar: AppBar(
+      //   backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+      //   title: Text(widget.title),
+      // ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: FloatingActionButton(
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(
-          side: const BorderSide(width: 3, color: Colors.blue),
+          side: BorderSide(width: 3, color: Colors.blue),
           borderRadius: BorderRadius.circular(100),
         ),
         onPressed: () {
-          Navigator.of(context).push(MaterialPageRoute(builder: (context) => AddExpense()));
+          Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (context) => AddExpense()));
         },
-        child: const Icon(Icons.add),
+        child: Icon(Icons.add),
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: currIndex,
@@ -92,14 +148,21 @@ class _MyHomePageState extends State<MyHomePage> {
             currIndex = index;
           });
         },
-        items: const [
+        items: [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-          BottomNavigationBarItem(icon: Icon(Icons.analytics), label: "Analytics"),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.analytics),
+            label: "Analytics",
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.wallet), label: "Wallet"),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: "Settings"),
+
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings),
+            label: "Settings",
+          ),
         ],
       ),
-      body: screens[currIndex],
+      body: Container(child: screens[currIndex]),
     );
   }
 }

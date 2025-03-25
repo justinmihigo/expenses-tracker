@@ -1,3 +1,4 @@
+import 'package:expenses_tracker/styles/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
@@ -34,7 +35,7 @@ class _AnalyticsScreen extends State<AnalyticsScreen> {
           spacing: 20,
           children: [
             SizedBox(
-              width: 400,
+              width: 300,
               height: 200,
               child: LineChart(
                 LineChartData(
@@ -83,7 +84,7 @@ class _AnalyticsScreen extends State<AnalyticsScreen> {
                   lineBarsData: [
                     LineChartBarData(
                       spots: const [
-                        FlSpot(0, 10),
+                        FlSpot(0, 0),
                         FlSpot(10, 20),
                         FlSpot(20, 30),
                         FlSpot(30, 40),
@@ -91,16 +92,13 @@ class _AnalyticsScreen extends State<AnalyticsScreen> {
                         FlSpot(50, 47),
                       ],
                       isCurved: true,
-                      color: Colors.black,
+                      color: Colors.white,
                       isStrokeCapRound: true,
                       dotData: FlDotData(show: false),
                       belowBarData: BarAreaData(
                         show: true,
                         gradient: LinearGradient(
-                          colors: [
-                            const Color.fromARGB(160, 50, 227, 106),
-                            Colors.white,
-                          ],
+                          colors: [AppColors.secondary, AppColors.accent],
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                         ),

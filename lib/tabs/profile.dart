@@ -1,3 +1,5 @@
+import 'package:expenses_tracker/pages/onboarding/goal_tracking.dart';
+import 'package:expenses_tracker/pages/onboarding/set_goals.dart';
 import 'package:flutter/material.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -6,96 +8,127 @@ class ProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.green,
+        backgroundColor: Theme.of(context).colorScheme.secondary,
         title: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          spacing: 50,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween, // Fixing spacing
           children: [Text("Profile"), Icon(Icons.notifications)],
         ),
         leading: Icon(Icons.arrow_back),
       ),
       body: LayoutBuilder(
         builder: (context, BoxConstraints constraints) {
-          return Center(
-            child: SizedBox(
-              height: double.infinity,
-              child: Column(
-                children: [
-                  Container(
-                    width: double.infinity,
-                    height: 150,
-                    decoration: BoxDecoration(
-                      color: Colors.green,
-                      borderRadius: BorderRadius.only(
-                        bottomLeft: Radius.elliptical(200, 50),
-                        bottomRight: Radius.elliptical(200, 50),
-                      ),
+          return SingleChildScrollView(
+            child: Column(
+              children: [
+                // Top Green Container
+                Container(
+                  width: double.infinity,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.secondary,
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.elliptical(200, 50),
+                      bottomRight: Radius.elliptical(200, 50),
                     ),
                   ),
-                  SizedBox(
-                    height: 100,
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Positioned(
-                          top: -50,
-                          left: constraints.maxWidth * 0.4,
-                          child: Column(
-                            spacing: 10,
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(100),
-                                // borderRadius: BorderRadius.all(Radius.circular(100)),
-                                child: Image.asset(
-                                  "assets/mtnlogo.jpg",
-                                  fit: BoxFit.fitWidth,
-                                  width: 80,
-                                ),
-                              ),
-                              Text("Justin Mihigo"),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(
-                    width: constraints.maxWidth * 0.8,
-                    height: 300,
-                    child: Align(
-                      alignment: Alignment.topLeft,
-                      child: Column(
-                        spacing: 40,
-                        children: [
-                          Row(
-                            spacing: 50,
-                            children: [
-                              Icon(Icons.person),
-                              Text("Account Info"),
-                            ],
-                          ),
+                ),
 
-                          Row(
-                            spacing: 50,
-                            children: [Icon(Icons.language), Text("Languages")],
-                          ),
-                          Row(
-                            spacing: 50,
-                            children: [Icon(Icons.security), Text("Security")],
-                          ),
-                          Row(
-                            spacing: 50,
-                            children: [Icon(Icons.logout), Text("Logout")],
-                          ),
-                        ],
+                SizedBox(
+                  height: 150, // Ensure enough space for Positioned Widget
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.center,
+                    children: [
+                      Positioned(
+                        top: -50,
+                        child: Column(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(100),
+                              child: Image.asset(
+                                "assets/mtnlogo.jpg",
+                                fit: BoxFit.cover,
+                                width: 80,
+                                height: 80,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text("Justin Mihigo"),
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+
+                // Menu Items
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 30),
+                  child: Column(
+                    children: [
+                      _menuItem(Icons.person, "Account Info", () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => GoalTracking(),
+                          ),
+                        );
+                      }),
+                      _menuItem(Icons.language, "Languages", () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => GoalTracking(),
+                          ),
+                        );
+                      }),
+                      _menuItem(Icons.abc, "Goals", () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => SpendingLimitScreen(),
+                          ),
+                        );
+                      }),
+                      _menuItem(Icons.security, "Security", () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => GoalTracking(),
+                          ),
+                        );
+                      }),
+                      _menuItem(Icons.logout, "Logout", () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => GoalTracking(),
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+              ],
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _menuItem(IconData icon, String text, Function page) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 15),
+      child: Row(
+        children: [
+          Icon(icon, size: 24),
+          const SizedBox(width: 20), // Fixing spacing
+          InkWell(
+            onTap: page as dynamic,
+            child: Text(text, style: TextStyle(fontSize: 16)),
+          ),
+        ],
       ),
     );
   }
