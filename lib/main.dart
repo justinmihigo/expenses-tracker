@@ -1,11 +1,19 @@
+import 'package:expenses_tracker/auth/login.dart';
+import 'package:expenses_tracker/firebase_options.dart';
+import 'package:expenses_tracker/sqlite.dart';
 import 'package:expenses_tracker/tabs/add_expense.dart';
 import 'package:expenses_tracker/tabs/analytics.dart';
 import 'package:expenses_tracker/tabs/home.dart';
+import 'package:expenses_tracker/tabs/profile.dart';
 import 'package:expenses_tracker/tabs/second_screen.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
   runApp(
     MultiProvider(
       providers: [
@@ -42,12 +50,18 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  @override
+  void initState() {
+    Sqlite().firebaseInit();
+    super.initState();
+  }
+
   int currIndex = 0;
   List<Widget> screens = [
     HomePage(),
     AnalyticsScreen(),
-    HomePage(),
-    HomePage(),
+    LoginScreen(),
+    ProfileScreen(),
   ];
   // void _incrementCounter() {
   //   setState(() {
