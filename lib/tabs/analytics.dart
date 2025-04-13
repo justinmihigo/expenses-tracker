@@ -23,8 +23,8 @@ class _AnalyticsScreen extends State<AnalyticsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text("Statistics"),
-        leading: ElevatedButton(
-          onPressed: () {
+        leading: InkWell(
+          onTap: () {
             Navigator.pop(context);
           },
           child: Icon(Icons.arrow_back),

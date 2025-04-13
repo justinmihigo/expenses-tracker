@@ -1,3 +1,4 @@
+import 'package:expenses_tracker/pages/notifications.dart';
 import 'package:expenses_tracker/pages/onboarding/goal_tracking.dart';
 import 'package:expenses_tracker/pages/onboarding/set_goals.dart';
 import 'package:flutter/material.dart';
@@ -8,12 +9,40 @@ class ProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.secondary,
+        backgroundColor: Theme.of(context).colorScheme.primary,
         title: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween, // Fixing spacing
-          children: [Text("Profile"), Icon(Icons.notifications)],
+          children: [
+            Text(
+              "Profile",
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSecondary,
+              ),
+            ),
+            InkWell(
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => Notifications()),
+                );
+              },
+              child: Icon(
+                Icons.notifications,
+                color: Theme.of(context).colorScheme.onSecondary,
+              ),
+            ),
+          ],
         ),
-        leading: Icon(Icons.arrow_back),
+        leading: InkWell(
+          onTap: () {
+            Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (context) => Notifications()));
+          },
+          child: Icon(
+            Icons.arrow_back,
+            color: Theme.of(context).colorScheme.onSecondary,
+          ),
+        ),
       ),
       body: LayoutBuilder(
         builder: (context, BoxConstraints constraints) {
@@ -25,7 +54,7 @@ class ProfileScreen extends StatelessWidget {
                   width: double.infinity,
                   height: 120,
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.secondary,
+                    color: Theme.of(context).colorScheme.primary,
                     borderRadius: BorderRadius.only(
                       bottomLeft: Radius.elliptical(200, 50),
                       bottomRight: Radius.elliptical(200, 50),

@@ -39,6 +39,7 @@ class _SpendingLimitScreenState extends State<SpendingLimitScreen> {
         leading: InkWell(
           onTap: () {
             Navigator.of(context).pop();
+            _currentSpending;
           },
           child: Icon(Icons.arrow_back),
         ),
@@ -77,12 +78,8 @@ class _SpendingLimitScreenState extends State<SpendingLimitScreen> {
               // Save Button
               Center(
                 child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (context) => GoalTracking()),
-                    );
-                  },
-                  // _saveLimit,
+                  onPressed: _saveLimit,
+
                   style: ElevatedButton.styleFrom(
                     padding: EdgeInsets.symmetric(horizontal: 50, vertical: 15),
                   ),
@@ -90,6 +87,19 @@ class _SpendingLimitScreenState extends State<SpendingLimitScreen> {
                 ),
               ),
               const SizedBox(height: 30),
+              Center(
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (context) => GoalTracking()),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    padding: EdgeInsets.symmetric(horizontal: 50, vertical: 15),
+                  ),
+                  child: Text("Check your goals"),
+                ),
+              ),
 
               // Progress Bar
             ],

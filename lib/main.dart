@@ -1,5 +1,4 @@
 import 'package:expenses_tracker/api/firebase_api.dart';
-import 'package:expenses_tracker/auth/login.dart';
 import 'package:expenses_tracker/auth/signup.dart';
 import 'package:expenses_tracker/firebase_options.dart';
 import 'package:expenses_tracker/pages/onboarding/first_screen.dart';
@@ -9,6 +8,7 @@ import 'package:expenses_tracker/tabs/analytics.dart';
 import 'package:expenses_tracker/tabs/home.dart';
 import 'package:expenses_tracker/tabs/profile.dart';
 import 'package:expenses_tracker/tabs/second_screen.dart';
+import 'package:expenses_tracker/tabs/wallet.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -110,14 +110,9 @@ class _MyHomePageState extends State<MyHomePage> {
   List<Widget> screens = [
     HomePage(),
     AnalyticsScreen(),
-    LoginScreen(),
+    WalletScreen(),
     ProfileScreen(),
   ];
-  // void _incrementCounter() {
-  //   setState(() {
-  //     _counter++;
-  //   });
-  // }
 
   @override
   Widget build(BuildContext context) {

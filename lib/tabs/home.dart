@@ -1,9 +1,5 @@
+import "package:expenses_tracker/pages/notifications.dart";
 import "package:flutter/material.dart";
-// import "package:google_fonts/google_fonts.dart";
-
-// void main() {
-//   runApp(HomePage());
-// }
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -83,10 +79,19 @@ class HomePage extends StatelessWidget {
                                   Radius.circular(10),
                                 ),
                               ),
-                              child: Icon(
-                                Icons.notifications_rounded,
-                                color:
-                                    Theme.of(context).colorScheme.onSecondary,
+                              child: InkWell(
+                                onTap: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (context) => Notifications(),
+                                    ),
+                                  );
+                                },
+                                child: Icon(
+                                  Icons.notifications_rounded,
+                                  color:
+                                      Theme.of(context).colorScheme.onSecondary,
+                                ),
                               ),
                             ),
                           ],
