@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
 import 'package:path_provider/path_provider.dart';
+import '../screens/history_screen.dart';
+import '../screens/notifications_screen.dart';
+import '../screens/savings_screen.dart';
+import '../models/notification.dart';
+import 'package:uuid/uuid.dart';
 
 class WalletData {
   double totalBalance;
@@ -158,11 +164,139 @@ class _WalletScreenState extends State<WalletScreen> {
   int selectedIndex = 0;
   late WalletData _walletData;
   bool _isLoading = true;
+  List<NotificationData> _notifications = [];
+  final _uuid = const Uuid();
+  Timer? _upcomingBillsCheckTimer;
 
   @override
   void initState() {
     super.initState();
     _loadWalletData();
+    _loadNotifications();
+    // Check for upcoming bills every hour
+    _upcomingBillsCheckTimer = Timer.periodic(
+      const Duration(hours: 1),
+      (_) => _checkUpcomingBills(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _upcomingBillsCheckTimer?.cancel();
+    super.dispose();
+  }
+
+  void _checkUpcomingBills() {
+    final now = DateTime.now();
+    final twoDaysFromNow = now.add(const Duration(days: 2));
+
+    for (final bill in _walletData.upcomingBills) {
+      if (bill.scheduledDateStr == null) continue;
+
+      final scheduledDate = DateTime.parse(bill.scheduledDateStr!);
+      final daysUntilDue = scheduledDate.difference(now).inDays;
+
+      // Check if we need to notify (2 days before or on the day)
+      if (daysUntilDue == 2 || daysUntilDue == 0) {
+        // Check if we already have a notification for this bill
+        final existingNotification = _notifications.any((n) =>
+            n.transactionId == bill.title &&
+            n.title.contains('Upcoming Bill') &&
+            n.timestamp.isAfter(now.subtract(const Duration(days: 1))));
+
+        if (!existingNotification) {
+          final notification = NotificationData(
+            id: _uuid.v4(),
+            title: 'Upcoming Bill',
+            message: '${bill.title} - ${bill.amount.toStringAsFixed(2)} Rwf is due ${daysUntilDue == 0 ? 'today' : 'in 2 days'}',
+            timestamp: now,
+            transactionId: bill.title,
+          );
+
+          setState(() {
+            _notifications.insert(0, notification);
+          });
+          _saveNotifications();
+
+          // Show snackbar notification
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(notification.message),
+                backgroundColor: Colors.orange,
+                duration: const Duration(seconds: 5),
+              ),
+            );
+          }
+        }
+      }
+    }
+  }
+
+  Future<void> _loadNotifications() async {
+    try {
+      final file = await _getNotificationsFile();
+      if (await file.exists()) {
+        final jsonData = await file.readAsString();
+        final List<dynamic> jsonList = jsonDecode(jsonData);
+        setState(() {
+          _notifications = jsonList
+              .map((json) => NotificationData.fromJson(json))
+              .toList();
+        });
+      }
+    } catch (e) {
+      print('Error loading notifications: $e');
+    }
+  }
+
+  Future<File> _getNotificationsFile() async {
+    final directory = await getApplicationDocumentsDirectory();
+    return File('${directory.path}/notifications.json');
+  }
+
+  Future<void> _saveNotifications() async {
+    try {
+      final file = await _getNotificationsFile();
+      final jsonData = jsonEncode(_notifications.map((n) => n.toJson()).toList());
+      await file.writeAsString(jsonData);
+    } catch (e) {
+      print('Error saving notifications: $e');
+    }
+  }
+
+  void _addNotification(TransactionData transaction) {
+    final notification = NotificationData(
+      id: _uuid.v4(),
+      title: transaction.isCredit ? 'New Income' : 'New Expense',
+      message: '${transaction.isCredit ? 'Added' : 'Spent'} ${transaction.amount.toStringAsFixed(2)} Rwf for ${transaction.title}',
+      timestamp: DateTime.now(),
+      transactionId: transaction.title,
+    );
+
+    setState(() {
+      _notifications.insert(0, notification);
+    });
+    _saveNotifications();
+
+    // Show snackbar notification
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(notification.message),
+        backgroundColor: transaction.isCredit ? Colors.green : Colors.red,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  void _markNotificationAsRead(NotificationData notification) {
+    setState(() {
+      final index = _notifications.indexWhere((n) => n.id == notification.id);
+      if (index != -1) {
+        _notifications[index] = notification.copyWith(isRead: true);
+      }
+    });
+    _saveNotifications();
   }
 
   Future<void> _loadWalletData() async {
@@ -251,6 +385,29 @@ class _WalletScreenState extends State<WalletScreen> {
               }
 
               _saveWalletData();
+
+              // Add notification for transaction update
+              final notification = NotificationData(
+                id: _uuid.v4(),
+                title: 'Transaction Updated',
+                message: '${transaction.title} has been updated to ${updatedTransaction.title} - ${updatedTransaction.amount.toStringAsFixed(2)} Rwf',
+                timestamp: DateTime.now(),
+                transactionId: updatedTransaction.title,
+              );
+
+              setState(() {
+                _notifications.insert(0, notification);
+              });
+              _saveNotifications();
+
+              // Show snackbar notification
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(notification.message),
+                  backgroundColor: Colors.blue,
+                  duration: const Duration(seconds: 3),
+                ),
+              );
             });
           },
           onClose: () {
@@ -303,6 +460,20 @@ class _WalletScreenState extends State<WalletScreen> {
 
                   _saveWalletData();
 
+                  // Add notification for transaction deletion
+                  final notification = NotificationData(
+                    id: _uuid.v4(),
+                    title: 'Transaction Deleted',
+                    message: '${transaction.title} - ${transaction.amount.toStringAsFixed(2)} Rwf has been deleted',
+                    timestamp: DateTime.now(),
+                    transactionId: transaction.title,
+                  );
+
+                  setState(() {
+                    _notifications.insert(0, notification);
+                  });
+                  _saveNotifications();
+
                   // Show confirmation
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -352,12 +523,47 @@ class _WalletScreenState extends State<WalletScreen> {
               ),
             ),
             actions: [
-              Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: IconButton(
-                  icon: const Icon(Icons.notifications, color: Colors.white),
-                  onPressed: () {},
-                ),
+              Stack(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.notifications, color: Colors.white),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => NotificationsScreen(
+                            notifications: _notifications,
+                            onNotificationRead: _markNotificationAsRead,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  if (_notifications.any((n) => !n.isRead))
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 14,
+                          minHeight: 14,
+                        ),
+                        child: Text(
+                          '${_notifications.where((n) => !n.isRead).length}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ],
             toolbarHeight: 120,
@@ -384,7 +590,7 @@ class _WalletScreenState extends State<WalletScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      "\$${_walletData.totalBalance.toStringAsFixed(2)}",
+                      "Rwf ${_walletData.totalBalance.toStringAsFixed(2)}",
                       style: TextStyle(
                         fontSize: 40,
                         fontWeight: FontWeight.bold,
@@ -397,7 +603,7 @@ class _WalletScreenState extends State<WalletScreen> {
             ),
             const SizedBox(height: 20),
             Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 WalletActionButton(
                   icon: Icons.add,
@@ -412,21 +618,26 @@ class _WalletScreenState extends State<WalletScreen> {
                               // Update the total balance for immediate transactions
                               if (!transaction.isScheduled) {
                                 if (transaction.isCredit) {
-                                  _walletData.totalBalance +=
-                                      transaction.amount;
+                                  _walletData.totalBalance += transaction.amount;
                                 } else {
-                                  _walletData.totalBalance -=
-                                      transaction.amount;
+                                  _walletData.totalBalance -= transaction.amount;
                                 }
                               }
 
                               if (transaction.isScheduled) {
                                 _walletData.upcomingBills.add(transaction);
+                                // Check for upcoming bill notification immediately
+                                _checkUpcomingBills();
                               } else {
                                 _walletData.transactions.add(transaction);
                               }
 
                               _saveWalletData();
+                              
+                              // Add notification for new transaction
+                              if (!transaction.isScheduled) {
+                                _addNotification(transaction);
+                              }
                             });
                           },
                           onClose: () {
@@ -437,12 +648,31 @@ class _WalletScreenState extends State<WalletScreen> {
                     );
                   },
                 ),
-                const SizedBox(width: 10),
+                WalletActionButton(
+                  icon: Icons.savings,
+                  label: "Savings",
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SavingsScreen(),
+                      ),
+                    );
+                  },
+                ),
                 WalletActionButton(
                   icon: Icons.history,
                   label: "History",
                   onPressed: () {
-                    // Add your history action here
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => HistoryScreen(
+                          transactions: _walletData.transactions,
+                          upcomingBills: _walletData.upcomingBills,
+                        ),
+                      ),
+                    );
                   },
                 ),
               ],
@@ -555,7 +785,7 @@ class TransactionsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (transactions.isEmpty) {
-      return Center(
+      return const Center(
         child: Text(
           "No transactions yet",
           style: TextStyle(fontSize: 16, color: Colors.grey),
@@ -563,23 +793,57 @@ class TransactionsList extends StatelessWidget {
       );
     }
 
+    // Sort transactions by date (newest first)
+    final sortedTransactions = List<TransactionData>.from(transactions)
+      ..sort((a, b) {
+        DateTime dateA = _parseDate(a.date);
+        DateTime dateB = _parseDate(b.date);
+        return dateB.compareTo(dateA);
+      });
+
     return ListView.builder(
       padding: const EdgeInsets.all(8.0),
-      itemCount: transactions.length,
+      itemCount: sortedTransactions.length,
       itemBuilder: (context, index) {
-        final transaction = transactions[index];
+        final transaction = sortedTransactions[index];
         return WalletTransactionItem(
           title: transaction.title,
           date: transaction.date,
-          amount:
-              (transaction.isCredit ? "+" : "-") +
-              "\$${transaction.amount.toStringAsFixed(2)}",
+          amount: (transaction.isCredit ? "+" : "-") +
+              "${transaction.amount.toStringAsFixed(2)}",
           isCredit: transaction.isCredit,
-          onEdit: () => onEdit(index, transaction),
-          onDelete: () => onDelete(index, transaction),
+          onEdit: () => onEdit(
+            transactions.indexOf(transaction),
+            transaction,
+          ),
+          onDelete: () => onDelete(
+            transactions.indexOf(transaction),
+            transaction,
+          ),
         );
       },
     );
+  }
+
+  DateTime _parseDate(String dateStr) {
+    if (dateStr == "Today") {
+      return DateTime.now();
+    } else if (dateStr == "Yesterday") {
+      return DateTime.now().subtract(const Duration(days: 1));
+    } else {
+      // Parse date in format "MMM DD, YYYY"
+      final months = {
+        'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+        'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
+      };
+      
+      final parts = dateStr.split(' ');
+      final month = months[parts[0]] ?? 1;
+      final day = int.parse(parts[1].replaceAll(',', ''));
+      final year = int.parse(parts[2]);
+      
+      return DateTime(year, month, day);
+    }
   }
 }
 
@@ -598,7 +862,7 @@ class UpcomingBillsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (upcomingBills.isEmpty) {
-      return Center(
+      return const Center(
         child: Text(
           "No upcoming bills",
           style: TextStyle(fontSize: 16, color: Colors.grey),
@@ -606,18 +870,33 @@ class UpcomingBillsList extends StatelessWidget {
       );
     }
 
+    // Sort upcoming bills by date (soonest first)
+    final sortedBills = List<TransactionData>.from(upcomingBills)
+      ..sort((a, b) {
+        if (a.scheduledDateStr == null || b.scheduledDateStr == null) return 0;
+        DateTime dateA = DateTime.parse(a.scheduledDateStr!);
+        DateTime dateB = DateTime.parse(b.scheduledDateStr!);
+        return dateA.compareTo(dateB);
+      });
+
     return ListView.builder(
       padding: const EdgeInsets.all(8.0),
-      itemCount: upcomingBills.length,
+      itemCount: sortedBills.length,
       itemBuilder: (context, index) {
-        final bill = upcomingBills[index];
+        final bill = sortedBills[index];
         return WalletTransactionItem(
           title: bill.title,
           date: bill.date,
-          amount: "-\$${bill.amount.toStringAsFixed(2)}",
+          amount: "-${bill.amount.toStringAsFixed(2)}",
           isCredit: false,
-          onEdit: () => onEdit(index, bill),
-          onDelete: () => onDelete(index, bill),
+          onEdit: () => onEdit(
+            upcomingBills.indexOf(bill),
+            bill,
+          ),
+          onDelete: () => onDelete(
+            upcomingBills.indexOf(bill),
+            bill,
+          ),
         );
       },
     );
@@ -989,18 +1268,19 @@ class _TransactionFormState extends State<TransactionForm> {
 
                           widget.onSave(updatedTransaction);
 
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                widget.isEditing
-                                    ? "Transaction updated successfully"
-                                    : (isScheduled
-                                        ? "Upcoming bill added successfully"
-                                        : "Transaction added successfully"),
+                          // Only show success message if not editing
+                          if (!widget.isEditing) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  isScheduled
+                                      ? "Upcoming bill added successfully"
+                                      : "Transaction added successfully",
+                                ),
+                                backgroundColor: Colors.green,
                               ),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
+                            );
+                          }
 
                           widget.onClose();
                         }
