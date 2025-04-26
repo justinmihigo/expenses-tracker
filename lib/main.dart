@@ -43,17 +43,17 @@ class MyApp extends StatelessWidget {
     final ThemeData appTheme = ThemeData(
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ButtonStyle(
-          padding: WidgetStateProperty.all<EdgeInsetsGeometry>(
-            EdgeInsets.all(20),
+          padding: MaterialStateProperty.all<EdgeInsetsGeometry>(
+            const EdgeInsets.all(20),
           ),
-          backgroundColor: WidgetStateProperty.all<Color>(AppColors.secondary),
-          foregroundColor: WidgetStateProperty.all<Color>(AppColors.primary),
-          fixedSize: WidgetStateProperty.all<Size>(
+          backgroundColor: MaterialStateProperty.all<Color>(AppColors.secondary),
+          foregroundColor: MaterialStateProperty.all<Color>(AppColors.primary),
+          fixedSize: MaterialStateProperty.all<Size>(
             Size.fromWidth(MediaQuery.of(context).size.width * 0.8),
           ),
         ),
       ),
-      fontFamily: "Poppins", // This should apply to all text
+      fontFamily: "Poppins",
       primaryColor: AppColors.secondary,
       colorScheme: ColorScheme.light(
         primary: AppColors.secondary,
@@ -65,7 +65,7 @@ class MyApp extends StatelessWidget {
         surface: AppColors.primary,
         onSurface: AppColors.secondary,
       ),
-      textTheme: TextTheme(
+      textTheme: const TextTheme(
         displayMedium: TextStyle(fontSize: 15, color: AppColors.secondary),
         titleSmall: TextStyle(
           fontSize: 12,
@@ -83,11 +83,7 @@ class MyApp extends StatelessWidget {
       navigatorKey: navigatorKey,
       routes: {SignupScreen.route: (context) => const SignupScreen()},
       theme: appTheme,
-      home:
-          // hasSeenOnBoarding
-          //     ? const MyHomePage(title: 'Home')
-          //     :
-          const FirstScreen(),
+      home: const FirstScreen(),
     );
   }
 }
@@ -108,7 +104,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   int currIndex = 0;
   List<Widget> screens = [
-    HomePage(),
+    HomeScreen(),
     AnalyticsScreen(),
     WalletScreen(),
     ProfileScreen(),
@@ -117,47 +113,100 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // appBar: AppBar(
-      //   backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      //   title: Text(widget.title),
-      // ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          side: BorderSide(width: 3, color: Colors.blue),
-          borderRadius: BorderRadius.circular(100),
-        ),
-        onPressed: () {
-          Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (context) => AddExpense()));
-        },
-        child: Icon(Icons.add),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: currIndex,
-        type: BottomNavigationBarType.fixed,
-        onTap: (index) {
-          setState(() {
-            currIndex = index;
-          });
-        },
-        items: [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.analytics),
-            label: "Analytics",
+      backgroundColor: Colors.grey.shade50,
+      bottomNavigationBar: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            height: 80,
+            margin: const EdgeInsets.only(top: 30),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(32),
+                topRight: Radius.circular(32),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, -5),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildNavItem(0, Icons.home, 'Home'),
+                _buildNavItem(1, Icons.analytics, 'Analytics'),
+                const SizedBox(width: 60),
+                _buildNavItem(2, Icons.wallet, 'Wallet'),
+                _buildNavItem(3, Icons.person, 'Profile'),
+              ],
+            ),
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.wallet), label: "Wallet"),
-
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: "Settings",
+          Positioned(
+            top: 0,
+            child: Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFB800),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.15),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: IconButton(
+                icon: const Icon(
+                  Icons.add,
+                  size: 32,
+                  color: Colors.black,
+                ),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (context) => AddExpense()),
+                  );
+                },
+              ),
+            ),
           ),
         ],
       ),
       body: Container(child: screens[currIndex]),
+    );
+  }
+
+  Widget _buildNavItem(int index, IconData icon, String label) {
+    final isSelected = currIndex == index;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => setState(() => currIndex = index),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 24,
+              color: isSelected ? const Color(0xFF2C1F63) : Colors.grey.shade400,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                color: isSelected ? const Color(0xFF2C1F63) : Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

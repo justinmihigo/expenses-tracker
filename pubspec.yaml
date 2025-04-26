@@ -24,8 +24,10 @@ dependencies:
   fluttertoast: ^8.2.12
   flutter_native_splash: ^2.4.5
   carousel_slider: ^5.0.0
-  shared_preferences: ^2.5.3
+  shared_preferences: ^2.2.2
   google_sign_in: ^6.3.0
+  path_provider: ^2.1.2
+  uuid: ^4.3.3
 
 dev_dependencies:
   flutter_test:
