@@ -1,23 +1,50 @@
-import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 
 class TransactionData {
+  final String id;
   final String title;
   final String date;
   final double amount;
   final bool isCredit;
   final bool isScheduled;
-  final DateTime? scheduledDate;
-
-  String? get scheduledDateStr => scheduledDate?.toIso8601String();
+  final String? scheduledDateStr;
 
   TransactionData({
+    String? id,
     required this.title,
     required this.date,
     required this.amount,
     required this.isCredit,
-    required this.isScheduled,
-    this.scheduledDate,
-  });
+    this.isScheduled = false,
+    DateTime? scheduledDate,
+  }) : id = id ?? const Uuid().v4(),
+       scheduledDateStr = scheduledDate?.toIso8601String();
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'title': title,
+      'date': date,
+      'amount': amount,
+      'isCredit': isCredit ? 1 : 0,
+      'isScheduled': isScheduled ? 1 : 0,
+      'scheduledDate': scheduledDateStr,
+    };
+  }
+
+  factory TransactionData.fromMap(Map<String, dynamic> map) {
+    return TransactionData(
+      id: map['id'] as String,
+      title: map['title'] as String,
+      date: map['date'] as String,
+      amount: (map['amount'] as num).toDouble(),
+      isCredit: map['isCredit'] == 1,
+      isScheduled: map['isScheduled'] == 1,
+      scheduledDate: map['scheduledDate'] != null 
+          ? DateTime.parse(map['scheduledDate'] as String)
+          : null,
+    );
+  }
 
   TransactionData copyWith({
     String? title,
@@ -28,36 +55,17 @@ class TransactionData {
     DateTime? scheduledDate,
   }) {
     return TransactionData(
+      id: id,
       title: title ?? this.title,
       date: date ?? this.date,
       amount: amount ?? this.amount,
       isCredit: isCredit ?? this.isCredit,
       isScheduled: isScheduled ?? this.isScheduled,
-      scheduledDate: scheduledDate ?? this.scheduledDate,
+      scheduledDate: scheduledDate ?? (scheduledDateStr != null ? DateTime.parse(scheduledDateStr!) : null),
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'title': title,
-      'date': date,
-      'amount': amount,
-      'isCredit': isCredit,
-      'isScheduled': isScheduled,
-      'scheduledDate': scheduledDateStr,
-    };
-  }
-
-  factory TransactionData.fromJson(Map<String, dynamic> json) {
-    return TransactionData(
-      title: json['title'] as String,
-      date: json['date'] as String,
-      amount: json['amount'] as double,
-      isCredit: json['isCredit'] as bool,
-      isScheduled: json['isScheduled'] as bool,
-      scheduledDate: json['scheduledDate'] != null
-          ? DateTime.parse(json['scheduledDate'] as String)
-          : null,
-    );
-  }
-} 
+  DateTime? get scheduledDate => scheduledDateStr != null 
+      ? DateTime.parse(scheduledDateStr!) 
+      : null;
+}

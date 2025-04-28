@@ -42,7 +42,7 @@ class _FirstScreenState extends State<FirstScreenState> {
                           builder: (context) {
                             return Stack(
                               children: [
-                                Container(
+                                SizedBox(
                                   width: constraints.maxWidth,
                                   height: constraints.maxHeight,
                                   child: Image.asset(

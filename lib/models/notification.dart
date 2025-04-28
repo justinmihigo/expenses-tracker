@@ -1,3 +1,5 @@
+import 'package:uuid/uuid.dart';
+
 class NotificationData {
   final String id;
   final String title;
@@ -7,38 +9,37 @@ class NotificationData {
   final String? transactionId;
 
   NotificationData({
-    required this.id,
+    String? id,
     required this.title,
     required this.message,
     required this.timestamp,
     this.isRead = false,
     this.transactionId,
-  });
+  }) : id = id ?? const Uuid().v4();
 
-  Map<String, dynamic> toJson() {
+  Map<String, dynamic> toMap() {
     return {
       'id': id,
       'title': title,
       'message': message,
       'timestamp': timestamp.toIso8601String(),
-      'isRead': isRead,
+      'isRead': isRead ? 1 : 0,
       'transactionId': transactionId,
     };
   }
 
-  factory NotificationData.fromJson(Map<String, dynamic> json) {
+  factory NotificationData.fromMap(Map<String, dynamic> map) {
     return NotificationData(
-      id: json['id'],
-      title: json['title'],
-      message: json['message'],
-      timestamp: DateTime.parse(json['timestamp']),
-      isRead: json['isRead'] ?? false,
-      transactionId: json['transactionId'],
+      id: map['id'] as String,
+      title: map['title'] as String,
+      message: map['message'] as String,
+      timestamp: DateTime.parse(map['timestamp'] as String),
+      isRead: map['isRead'] == 1,
+      transactionId: map['transactionId'] as String?,
     );
   }
 
   NotificationData copyWith({
-    String? id,
     String? title,
     String? message,
     DateTime? timestamp,
@@ -46,7 +47,7 @@ class NotificationData {
     String? transactionId,
   }) {
     return NotificationData(
-      id: id ?? this.id,
+      id: id,
       title: title ?? this.title,
       message: message ?? this.message,
       timestamp: timestamp ?? this.timestamp,
@@ -54,4 +55,4 @@ class NotificationData {
       transactionId: transactionId ?? this.transactionId,
     );
   }
-} 
+}

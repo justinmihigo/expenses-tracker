@@ -5,3 +5,8 @@ flutter_native_splash:
 
   color: "#0000FF"
   image: assets/logos/trackit-white.png
+
+  android_12:
+    image: assets/logos/trackit-white.png
+    color: "#0000FF"
+  

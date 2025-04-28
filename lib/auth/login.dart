@@ -66,7 +66,7 @@ class _LoginScreenState extends State<LoginScreenState> {
             child: Column(
               spacing: 30,
               children: [
-                Container(
+                SizedBox(
                   width: 150,
                   height: 50,
                   child: ClipRRect(

@@ -7,7 +7,7 @@ class GoalTracking extends StatefulWidget {
 }
 
 class _GoalTrackingState extends State<GoalTracking> {
-  double _spendingLimit = 0.0;
+  final double _spendingLimit = 0.0;
   double _currentSpending = 0.0;
   void _updateSpending(double amount) {
     setState(() {

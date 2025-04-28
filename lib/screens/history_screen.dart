@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../tabs/wallet.dart';
+import '../models/transaction.dart';
 
 class HistoryScreen extends StatelessWidget {
   final List<TransactionData> transactions;
@@ -113,15 +113,14 @@ class HistoryScreen extends StatelessWidget {
                               )
                             : null,
                         trailing: Text(
-                          (transaction.isCredit ? "+" : "-") +
-                              "${transaction.amount.toStringAsFixed(2)}",
+                          "${transaction.isCredit ? "+" : "-"}${transaction.amount.toStringAsFixed(2)}",
                           style: TextStyle(
                             color: transaction.isCredit ? Colors.green : Colors.red,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
-                    )).toList(),
+                    )),
                     if (dateIndex < sortedDates.length - 1)
                       const Divider(height: 24),
                   ],
@@ -151,4 +150,4 @@ class HistoryScreen extends StatelessWidget {
       return DateTime(year, month, day);
     }
   }
-} 
+}

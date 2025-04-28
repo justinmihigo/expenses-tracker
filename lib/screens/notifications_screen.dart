@@ -3,7 +3,7 @@ import '../models/notification.dart';
 
 class NotificationsScreen extends StatelessWidget {
   final List<NotificationData> notifications;
-  final Function(NotificationData) onNotificationRead;
+  final Function(String) onNotificationRead;
 
   const NotificationsScreen({
     required this.notifications,
@@ -18,7 +18,7 @@ class NotificationsScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.primary,
         title: const Text(
-          "Notifications",
+          'Notifications',
           style: TextStyle(color: Colors.white),
         ),
         leading: IconButton(
@@ -27,54 +27,80 @@ class NotificationsScreen extends StatelessWidget {
         ),
       ),
       body: notifications.isEmpty
-          ? const Center(
-              child: Text(
-                "No notifications",
-                style: TextStyle(fontSize: 16, color: Colors.grey),
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.notifications_none,
+                    size: 64,
+                    color: Colors.grey.shade400,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No notifications',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
               ),
             )
           : ListView.builder(
-              padding: const EdgeInsets.all(16),
               itemCount: notifications.length,
               itemBuilder: (context, index) {
                 final notification = notifications[index];
-                return Card(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
+                return Dismissible(
+                  key: Key(notification.id),
+                  background: Container(
+                    color: Colors.green,
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.only(left: 20),
+                    child: const Icon(Icons.check, color: Colors.white),
                   ),
-                  margin: const EdgeInsets.only(bottom: 12),
-                  color: notification.isRead ? Colors.white : Colors.blue.shade50,
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: Theme.of(context).colorScheme.primary,
-                      child: const Icon(
-                        Icons.notifications,
-                        color: Colors.white,
-                      ),
+                  direction: DismissDirection.startToEnd,
+                  onDismissed: (_) => onNotificationRead(notification.id),
+                  child: Card(
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
                     ),
-                    title: Text(
-                      notification.title,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(notification.message),
-                        const SizedBox(height: 4),
-                        Text(
-                          _formatTimestamp(notification.timestamp),
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 12,
-                          ),
+                    child: ListTile(
+                      title: Text(
+                        notification.title,
+                        style: TextStyle(
+                          fontWeight:
+                              notification.isRead ? FontWeight.normal : FontWeight.bold,
                         ),
-                      ],
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(notification.message),
+                          const SizedBox(height: 4),
+                          Text(
+                            _formatTimestamp(notification.timestamp),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      leading: CircleAvatar(
+                        backgroundColor: notification.isRead
+                            ? Colors.grey.shade200
+                            : Theme.of(context).colorScheme.primary,
+                        child: Icon(
+                          _getNotificationIcon(notification),
+                          color: notification.isRead
+                              ? Colors.grey
+                              : Theme.of(context).colorScheme.onPrimary,
+                        ),
+                      ),
+                      onTap: () => onNotificationRead(notification.id),
                     ),
-                    onTap: () {
-                      if (!notification.isRead) {
-                        onNotificationRead(notification);
-                      }
-                    },
                   ),
                 );
               },
@@ -87,13 +113,28 @@ class NotificationsScreen extends StatelessWidget {
     final difference = now.difference(timestamp);
 
     if (difference.inDays > 0) {
-      return '${difference.inDays} day${difference.inDays > 1 ? 's' : ''} ago';
+      return '${difference.inDays}d ago';
     } else if (difference.inHours > 0) {
-      return '${difference.inHours} hour${difference.inHours > 1 ? 's' : ''} ago';
+      return '${difference.inHours}h ago';
     } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes} minute${difference.inMinutes > 1 ? 's' : ''} ago';
+      return '${difference.inMinutes}m ago';
     } else {
       return 'Just now';
     }
   }
-} 
+
+  IconData _getNotificationIcon(NotificationData notification) {
+    if (notification.title.contains('Income')) {
+      return Icons.arrow_upward;
+    } else if (notification.title.contains('Expense')) {
+      return Icons.arrow_downward;
+    } else if (notification.title.contains('Bill')) {
+      return Icons.calendar_today;
+    } else if (notification.title.contains('Updated')) {
+      return Icons.edit;
+    } else if (notification.title.contains('Deleted')) {
+      return Icons.delete;
+    }
+    return Icons.notifications;
+  }
+}

@@ -1,122 +1,184 @@
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter/widgets.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:rxdart/rxdart.dart';
 
-class Sqlite {
-  final messageStreamController = BehaviorSubject<RemoteMessage>();
-  Future<void> firebaseInit() async {
-    // await FirebaseAuth.instance.useAuthEmulator("localhost", 9000);
-    FirebaseAuth.instance.authStateChanges().listen((Object? user) {
-      if (user is User) {
-        debugPrint("User is not signed in");
-      } else {
-        debugPrint("User is in");
-      }
-    });
-    final messaging = FirebaseMessaging.instance;
-    final settings = await messaging.requestPermission(
-      alert: true,
-      announcement: false,
-      criticalAlert: false,
-      carPlay: true,
-      provisional: false,
-      sound: true,
-    );
-    if (kDebugMode) {
-      debugPrint('Permission granted ${settings.authorizationStatus}');
-    }
-    String? token = await messaging.getToken();
-    if (kDebugMode) {
-      debugPrint('Registration token=$token');
-    }
+class SQLiteDB {
+  static SQLiteDB? _instance;
+  static Database? _database;
+
+  SQLiteDB._();
+
+  static SQLiteDB get instance {
+    _instance ??= SQLiteDB._();
+    return _instance!;
   }
 
-  Future<void> sendNotifications() async {
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      if (kDebugMode) {
-        debugPrint(
-          'Handling foreground message messageid= ${message.messageId}',
-        );
-        debugPrint('Message data ${message.data}');
-        debugPrint('Message title= ${message.notification?.title}');
-        debugPrint('message notifaction title= ${message.notification?.body}');
-      }
-      messageStreamController.sink.add(message);
-    });
+  Future<Database> get database async {
+    if (_database != null) return _database!;
+    _database = await _initDatabase();
+    return _database!;
   }
 
-  Future<void> signup(String email, String password) async {
-    try {
-      await firebaseInit();
-      final credentialUser = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(email: email, password: password);
-      final user = credentialUser.user?.email;
-      if (user != null) {
-        debugPrint(user);
-      }
-    } catch (e) {
-      debugPrint(e.toString());
-    }
-  }
+  Future<Database> _initDatabase() async {
+    final String databasePath = await getDatabasesPath();
+    final String path = join(databasePath, 'expenses.db');
 
-  Future<Database> dbinit() async {
-    WidgetsFlutterBinding.ensureInitialized();
-    final String dbpath = join(await getDatabasesPath(), "user_db.db");
-    final database = openDatabase(
-      dbpath,
-      onCreate: (db, version) {
-        return db.execute(
-          'CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, email TEXT, password TEXT)',
-        );
-      },
+    return await openDatabase(
+      path,
       version: 1,
+      onCreate: (Database db, int version) async {
+        await _createTables(db);
+      },
+      onUpgrade: (Database db, int oldVersion, int newVersion) async {
+        if (oldVersion < 1) {
+          await _createTables(db);
+        }
+      },
     );
-    return database;
   }
 
-  Future<void> insert(User user) async {
-    final db = await dbinit();
-    await db.insert("users", user.toMap());
+  Future<void> _createTables(Database db) async {
+    // Create transactions table
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS transactions (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        date TEXT NOT NULL,
+        amount REAL NOT NULL,
+        isCredit INTEGER NOT NULL,
+        isScheduled INTEGER NOT NULL,
+        scheduledDate TEXT,
+        synced INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+
+    // Create wallet_meta table
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS wallet_meta (
+        key TEXT PRIMARY KEY,
+        value REAL NOT NULL
+      )
+    ''');
+
+    // Create notifications table
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS notifications (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        timestamp TEXT NOT NULL,
+        isRead INTEGER NOT NULL DEFAULT 0,
+        transactionId TEXT,
+        FOREIGN KEY (transactionId) REFERENCES transactions (id) ON DELETE CASCADE
+      )
+    ''');
+
+    // Create sync_queue table for handling offline operations
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS sync_queue (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        operation TEXT NOT NULL,
+        table_name TEXT NOT NULL,
+        record_id TEXT NOT NULL,
+        data TEXT NOT NULL,
+        timestamp TEXT NOT NULL
+      )
+    ''');
+
+    // Initialize wallet_meta with default total balance if not exists
+    await db.insert(
+      'wallet_meta',
+      {'key': 'total_balance', 'value': 0.0},
+      conflictAlgorithm: ConflictAlgorithm.ignore,
+    );
   }
 
-  Future<List<User>> listUsers() async {
-    final db = await dbinit();
-    List<Map<String, Object?>> users = await db.query("users");
-    return [
-      for (final {
-            "id": id as int,
-            "name": name as String,
-            "email": email as String,
-            "password": password as String,
-          }
-          in users)
-        User(id: id, name: name, email: email, password: password),
-    ];
-  }
-}
-
-class User {
-  final int? id;
-  final String email;
-  final String name;
-  final String password;
-
-  const User({
-    this.id,
-    required this.email,
-    required this.name,
-    required this.password,
-  });
-  Map<String, Object?> toMap() {
-    return ({"id": id, "name": name, "email": email, "password": password});
+  // Transaction methods
+  Future<void> insertTransaction(Map<String, dynamic> transaction) async {
+    final db = await database;
+    await db.insert(
+      'transactions',
+      transaction,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
-  @override
-  String toString() {
-    return "User(id: $id, name: $name, email: $email, password: $password)";
+  Future<List<Map<String, dynamic>>> getTransactions({bool? scheduled}) async {
+    final db = await database;
+    if (scheduled != null) {
+      return db.query(
+        'transactions',
+        where: 'isScheduled = ?',
+        whereArgs: [scheduled ? 1 : 0],
+      );
+    }
+    return db.query('transactions');
+  }
+
+  Future<void> updateTransaction(String id, Map<String, dynamic> transaction) async {
+    final db = await database;
+    await db.update(
+      'transactions',
+      transaction,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> deleteTransaction(String id) async {
+    final db = await database;
+    await db.delete(
+      'transactions',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // Balance methods
+  Future<void> updateTotalBalance(double balance) async {
+    final db = await database;
+    await db.insert(
+      'wallet_meta',
+      {'key': 'total_balance', 'value': balance},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<double> getTotalBalance() async {
+    final db = await database;
+    final result = await db.query(
+      'wallet_meta',
+      where: 'key = ?',
+      whereArgs: ['total_balance'],
+    );
+    
+    if (result.isEmpty) {
+      return 0.0;
+    }
+    return result.first['value'] as double;
+  }
+
+  // Notification methods
+  Future<void> insertNotification(Map<String, dynamic> notification) async {
+    final db = await database;
+    await db.insert(
+      'notifications',
+      notification,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getNotifications() async {
+    final db = await database;
+    return db.query('notifications', orderBy: 'timestamp DESC');
+  }
+
+  Future<void> markNotificationAsRead(String id) async {
+    final db = await database;
+    await db.update(
+      'notifications',
+      {'isRead': 1},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 }

@@ -1,5 +1,3 @@
-import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'transaction.dart';
 
 class WalletData {
@@ -16,8 +14,8 @@ class WalletData {
   Map<String, dynamic> toJson() {
     return {
       'totalBalance': totalBalance,
-      'transactions': transactions.map((x) => x.toJson()).toList(),
-      'upcomingBills': upcomingBills.map((x) => x.toJson()).toList(),
+      'transactions': transactions.map((x) => x.toMap()).toList(),
+      'upcomingBills': upcomingBills.map((x) => x.toMap()).toList(),
     };
   }
 
@@ -25,10 +23,10 @@ class WalletData {
     return WalletData(
       totalBalance: json['totalBalance'] as double,
       transactions: (json['transactions'] as List)
-          .map((x) => TransactionData.fromJson(x))
+          .map((x) => TransactionData.fromMap(x as Map<String, dynamic>))
           .toList(),
       upcomingBills: (json['upcomingBills'] as List)
-          .map((x) => TransactionData.fromJson(x))
+          .map((x) => TransactionData.fromMap(x as Map<String, dynamic>))
           .toList(),
     );
   }
@@ -40,4 +38,4 @@ class WalletData {
       upcomingBills: [],
     );
   }
-} 
+}
