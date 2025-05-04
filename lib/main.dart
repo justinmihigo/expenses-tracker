@@ -8,19 +8,45 @@ import 'package:expenses_tracker/styles/app_colors.dart';
 import 'package:expenses_tracker/tabs/add_expense.dart';
 import 'package:expenses_tracker/screens/analytics_screen.dart';
 import 'package:expenses_tracker/tabs/home.dart';
-import 'package:expenses_tracker/tabs/profile.dart';
 import 'package:expenses_tracker/tabs/second_screen.dart';
 import 'package:expenses_tracker/tabs/wallet.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:awesome_notifications/awesome_notifications.dart';
 import 'services/firebase_service.dart';
+import 'screens/budget_goals_screen.dart';
 
 final navigatorKey = GlobalKey<NavigatorState>();
 
 Future<bool> initializeApp() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize Awesome Notifications
+  await AwesomeNotifications().initialize(
+    null, // null means use default app icon
+    [
+      NotificationChannel(
+        channelKey: 'transactions',
+        channelName: 'Transaction Notifications',
+        channelDescription: 'Notifications for transaction updates',
+        defaultColor: const Color(0xFF2C1F63),
+        ledColor: Colors.white,
+        importance: NotificationImportance.High,
+        channelShowBadge: true,
+        enableVibration: true,
+        enableLights: true,
+      ),
+    ],
+  );
+
+  // Request permission to show notifications
+  await AwesomeNotifications().isNotificationAllowed().then((isAllowed) {
+    if (!isAllowed) {
+      AwesomeNotifications().requestPermissionToSendNotifications();
+    }
+  });
   
   // Initialize Firebase
   await Firebase.initializeApp(
@@ -121,8 +147,15 @@ class _MyHomePageState extends State<MyHomePage> {
     HomeScreen(),
     AnalyticsScreen(),
     WalletScreen(),
+    const BudgetGoalsScreen(),
     SettingsScreen(),
   ];
+
+  void _showAddTransaction() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (context) => AddExpense()),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -155,7 +188,8 @@ class _MyHomePageState extends State<MyHomePage> {
                 _buildNavItem(1, Icons.analytics, 'Analytics'),
                 const SizedBox(width: 60),
                 _buildNavItem(2, Icons.wallet, 'Wallet'),
-                _buildNavItem(3, Icons.person, 'Profile'),
+                _buildNavItem(3, Icons.savings, 'Budget'),
+                _buildNavItem(4, Icons.person, 'Profile'),
               ],
             ),
           ),
@@ -181,11 +215,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   size: 32,
                   color: Colors.black,
                 ),
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => AddExpense()),
-                  );
-                },
+                onPressed: _showAddTransaction,
               ),
             ),
           ),

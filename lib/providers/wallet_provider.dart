@@ -2,9 +2,10 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/notification.dart';
 import '../models/transaction.dart';
-import '../models/wallet_data.dart';
 import '../services/firebase_service.dart';
 import '../sqlite.dart';
+import 'package:expenses_tracker/models/budget_goal.dart';
+import 'package:expenses_tracker/models/wallet_data.dart';
 
 class WalletProvider extends ChangeNotifier {
   final _db = SQLiteDB.instance;
@@ -16,6 +17,8 @@ class WalletProvider extends ChangeNotifier {
   double _totalBalance = 0.0;
   bool _isLoading = true;
   bool _needsSync = false;
+  WalletData _walletData = WalletData.initial();
+  BudgetGoal? _currentBudgetGoal;
 
   WalletProvider() {
     _initializeData();
@@ -27,6 +30,8 @@ class WalletProvider extends ChangeNotifier {
   double get totalBalance => _totalBalance;
   bool get isLoading => _isLoading;
   bool get needsSync => _needsSync;
+  WalletData get walletData => _walletData;
+  BudgetGoal? get currentBudgetGoal => _currentBudgetGoal;
 
   Future<void> _initializeData() async {
     _isLoading = true;
@@ -215,4 +220,64 @@ class WalletProvider extends ChangeNotifier {
     _db.updateTotalBalance(_totalBalance);
   }
 
+  void setWalletData(WalletData data) {
+    _walletData = data;
+    notifyListeners();
+  }
+
+  void setBudgetGoal(BudgetGoal goal) {
+    _currentBudgetGoal = goal;
+    notifyListeners();
+  }
+
+  Map<TransactionCategory, double> getCategoryTotals() {
+    final totals = <TransactionCategory, double>{};
+    
+    for (var category in TransactionCategory.values) {
+      totals[category] = 0;
+    }
+    
+    for (var transaction in _walletData.transactions) {
+      totals[transaction.category] = (totals[transaction.category] ?? 0) + 
+        (transaction.isCredit ? transaction.amount : -transaction.amount);
+    }
+    
+    return totals;
+  }
+
+  Map<TransactionCategory, double> getCategoryProgress() {
+    if (_currentBudgetGoal == null) return {};
+    
+    final totals = getCategoryTotals();
+    final progress = <TransactionCategory, double>{};
+    
+    for (var entry in _currentBudgetGoal!.categoryLimits.entries) {
+      final category = TransactionCategory.values.firstWhere(
+        (c) => c.toString().split('.').last == entry.key,
+        orElse: () => TransactionCategory.otherExpense,
+      );
+      
+      final total = totals[category] ?? 0;
+      final limit = entry.value;
+      
+      progress[category] = (total / limit) * 100;
+    }
+    
+    return progress;
+  }
+
+  double getSavingsProgress() {
+    if (_currentBudgetGoal == null) return 0;
+    
+    final totalIncome = _walletData.transactions
+        .where((t) => t.isCredit)
+        .fold(0.0, (sum, t) => sum + t.amount);
+    
+    final totalExpenses = _walletData.transactions
+        .where((t) => !t.isCredit)
+        .fold(0.0, (sum, t) => sum + t.amount);
+    
+    final savings = totalIncome - totalExpenses;
+    return (savings / _currentBudgetGoal!.savingsTarget) * 100;
+  }
 }

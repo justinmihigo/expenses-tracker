@@ -46,6 +46,7 @@ void main() {
         isCredit: true,
         date: DateTime.now().toIso8601String(),
         isScheduled: false,
+        category: TransactionCategory.salary,
       );
 
       await db.insertTransaction(transaction.toMap());
@@ -65,6 +66,7 @@ void main() {
         isCredit: true,
         date: DateTime.now().toIso8601String(),
         isScheduled: false,
+        category: TransactionCategory.salary,
       );
 
       await db.insertTransaction(transaction.toMap());
@@ -90,6 +92,7 @@ void main() {
         isCredit: true,
         date: DateTime.now().toIso8601String(),
         isScheduled: false,
+        category: TransactionCategory.salary,
       );
 
       await db.insertTransaction(transaction.toMap());
@@ -109,6 +112,7 @@ void main() {
         isCredit: true,
         date: DateTime.now().toIso8601String(),
         isScheduled: false,
+        category: TransactionCategory.salary,
       );
 
       await syncService.addToSyncQueue(
@@ -135,6 +139,7 @@ void main() {
         isCredit: true,
         date: DateTime.now().toIso8601String(),
         isScheduled: false,
+        category: TransactionCategory.salary,
       );
 
       await syncService.addToSyncQueue(
@@ -162,6 +167,7 @@ void main() {
         isCredit: true,
         date: DateTime.now().toIso8601String(),
         isScheduled: false,
+        category: TransactionCategory.salary,
       );
 
       await repository.addTransaction(transaction);

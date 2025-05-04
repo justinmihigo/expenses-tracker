@@ -3,7 +3,6 @@ import 'package:expenses_tracker/pages/test_transaction_page.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/wallet_provider.dart';
-import '../screens/notifications_screen.dart';
 import '../widgets/wallet_balance_card.dart';
 import '../widgets/wallet_actions.dart';
 import '../widgets/transactions_list.dart';
@@ -52,7 +51,7 @@ class _WalletScreenState extends State<WalletScreen> {
   Future<void> _loadTotalBalance() async {
     final transactions = await SQLiteDB.instance.getTransactions();
     double balance = 0.0;
-    
+
     for (var transaction in transactions) {
       if (transaction['isCredit'] == 1) {
         balance += transaction['amount'] as double;
@@ -60,7 +59,7 @@ class _WalletScreenState extends State<WalletScreen> {
         balance -= transaction['amount'] as double;
       }
     }
-    
+
     setState(() {
       totalBalance = balance;
     });
@@ -112,32 +111,39 @@ class _WalletScreenState extends State<WalletScreen> {
                       child: IconButton(
                         icon: const Icon(Icons.sync, color: Colors.white70),
                         onPressed: () {
-                            Navigator.of(context).push(MaterialPageRoute(builder: (context) => const TestTransactionPage()));
-
-                          // provider.refreshData();
-                          // ScaffoldMessenger.of(context).showSnackBar(
-                          //   const SnackBar(
-                          //     content: Text('Syncing data...'),
-                          //     duration: Duration(seconds: 2),
-                          //   ),
-                          // );
+                          provider.refreshData();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Syncing data...'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
                         },
                       ),
                     ),
                   Stack(
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.notifications, color: Colors.white),
+                        icon: const Icon(
+                          Icons.notifications,
+                          color: Colors.white,
+                        ),
                         onPressed: () {
-                          Navigator.push(
-                            context,
+                          Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (context) => NotificationsScreen(
-                                notifications: provider.notifications,
-                                onNotificationRead: (String id) => provider.markNotificationAsRead(id),
-                              ),
+                              builder: (context) => const TestTransactionPage(),
                             ),
                           );
+
+                          // Navigator.push(
+                          //   context,
+                          //   MaterialPageRoute(
+                          //     builder: (context) => NotificationsScreen(
+                          //       notifications: provider.notifications,
+                          //       onNotificationRead: (String id) => provider.markNotificationAsRead(id),
+                          //     ),
+                          //   ),
+                          // );
                         },
                       ),
                       if (provider.notifications.any((n) => !n.isRead))
@@ -230,83 +236,126 @@ class _WalletScreenState extends State<WalletScreen> {
                   ),
                   const SizedBox(height: 20),
                   Expanded(
-                    child: selectedIndex == 0
-                        ? TransactionsList(
-                            transactions: provider.transactions,
-                            formatAmount: _formatAmount,
-                            onEdit: (index, transaction) => showDialog(
-                              context: context,
-                              builder: (context) => TransactionForm(
-                                initialData: transaction,
-                                isEditing: true,
-                                onSave: (updatedTransaction) {
-                                  provider.updateTransaction(transaction, updatedTransaction);
-                                  _loadTotalBalance();
-                                  Navigator.of(context).pop();
-                                },
-                                onClose: () => Navigator.of(context).pop(),
-                              ),
-                            ),
-                            onDelete: (index, transaction) => showDialog(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: Text('Confirm Delete'),
-                                content: Text('Are you sure you want to delete this transaction?'),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.of(context).pop(),
-                                    child: Text('Cancel'),
+                    child:
+                        selectedIndex == 0
+                            ? TransactionsList(
+                              transactions: provider.transactions,
+                              formatAmount: _formatAmount,
+                              onEdit:
+                                  (index, transaction) => showDialog(
+                                    context: context,
+                                    builder:
+                                        (context) => TransactionForm(
+                                          initialData: transaction,
+                                          isEditing: true,
+                                          onSave: (updatedTransaction) {
+                                            provider.updateTransaction(
+                                              transaction,
+                                              updatedTransaction,
+                                            );
+                                            _loadTotalBalance();
+                                            Navigator.of(context).pop();
+                                          },
+                                          onClose:
+                                              () => Navigator.of(context).pop(),
+                                        ),
                                   ),
-                                  TextButton(
-                                    onPressed: () {
-                                      provider.deleteTransaction(transaction);
-                                      _loadTotalBalance();
-                                      Navigator.of(context).pop();
-                                    },
-                                    child: Text('Delete', style: TextStyle(color: Colors.red)),
+                              onDelete:
+                                  (index, transaction) => showDialog(
+                                    context: context,
+                                    builder:
+                                        (context) => AlertDialog(
+                                          title: Text('Confirm Delete'),
+                                          content: Text(
+                                            'Are you sure you want to delete this transaction?',
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed:
+                                                  () =>
+                                                      Navigator.of(
+                                                        context,
+                                                      ).pop(),
+                                              child: Text('Cancel'),
+                                            ),
+                                            TextButton(
+                                              onPressed: () {
+                                                provider.deleteTransaction(
+                                                  transaction,
+                                                );
+                                                _loadTotalBalance();
+                                                Navigator.of(context).pop();
+                                              },
+                                              child: Text(
+                                                'Delete',
+                                                style: TextStyle(
+                                                  color: Colors.red,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                   ),
-                                ],
-                              ),
-                            ),
-                          )
-                        : UpcomingBillsList(
-                            upcomingBills: provider.upcomingBills,
-                            formatAmount: _formatAmount,
-                            onEdit: (index, bill) => showDialog(
-                              context: context,
-                              builder: (context) => TransactionForm(
-                                initialData: bill,
-                                isEditing: true,
-                                onSave: (updatedBill) {
-                                  provider.updateTransaction(bill, updatedBill);
-                                  _loadTotalBalance();
-                                  Navigator.of(context).pop();
-                                },
-                                onClose: () => Navigator.of(context).pop(),
-                              ),
-                            ),
-                            onDelete: (index, bill) => showDialog(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: Text('Confirm Delete'),
-                                content: Text('Are you sure you want to delete this bill?'),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.of(context).pop(),
-                                    child: Text('Cancel'),
+                            )
+                            : UpcomingBillsList(
+                              upcomingBills: provider.upcomingBills,
+                              formatAmount: _formatAmount,
+                              onEdit:
+                                  (index, bill) => showDialog(
+                                    context: context,
+                                    builder:
+                                        (context) => TransactionForm(
+                                          initialData: bill,
+                                          isEditing: true,
+                                          onSave: (updatedBill) {
+                                            provider.updateTransaction(
+                                              bill,
+                                              updatedBill,
+                                            );
+                                            _loadTotalBalance();
+                                            Navigator.of(context).pop();
+                                          },
+                                          onClose:
+                                              () => Navigator.of(context).pop(),
+                                        ),
                                   ),
-                                  TextButton(
-                                    onPressed: () {
-                                      provider.deleteTransaction(bill);
-                                      _loadTotalBalance();
-                                      Navigator.of(context).pop();
-                                    },
-                                    child: Text('Delete', style: TextStyle(color: Colors.red)),
+                              onDelete:
+                                  (index, bill) => showDialog(
+                                    context: context,
+                                    builder:
+                                        (context) => AlertDialog(
+                                          title: Text('Confirm Delete'),
+                                          content: Text(
+                                            'Are you sure you want to delete this bill?',
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed:
+                                                  () =>
+                                                      Navigator.of(
+                                                        context,
+                                                      ).pop(),
+                                              child: Text('Cancel'),
+                                            ),
+                                            TextButton(
+                                              onPressed: () {
+                                                provider.deleteTransaction(
+                                                  bill,
+                                                );
+                                                _loadTotalBalance();
+                                                Navigator.of(context).pop();
+                                              },
+                                              child: Text(
+                                                'Delete',
+                                                style: TextStyle(
+                                                  color: Colors.red,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                   ),
-                                ],
-                              ),
                             ),
-                          ),
                   ),
                 ],
               ),

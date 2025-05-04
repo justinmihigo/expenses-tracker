@@ -2,8 +2,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:rxdart/rxdart.dart';
 import '../models/transaction.dart';
+import 'package:awesome_notifications/awesome_notifications.dart';
 
 class FirebaseException implements Exception {
   final String message;
@@ -202,6 +204,30 @@ class FirebaseService {
         .doc(userId)
         .snapshots()
         .map((doc) => (doc.data()?['totalBalance'] as num?)?.toDouble() ?? 0.0);
+  }
+
+  Future<void> sendTransactionNotification(TransactionData transaction) async {
+    try {
+      await AwesomeNotifications().createNotification(
+        content: NotificationContent(
+          id: transaction.id.hashCode,
+          channelKey: 'transactions',
+          title: 'Transaction Created',
+          body: '${transaction.title} - ${transaction.amount.toStringAsFixed(2)} Rwf has been ${transaction.isCredit ? 'added' : 'deducted'}',
+          notificationLayout: NotificationLayout.Default,
+          category: NotificationCategory.Social,
+          wakeUpScreen: true,
+          fullScreenIntent: false,
+          criticalAlert: false,
+          payload: {
+            'type': 'transaction',
+            'transactionId': transaction.id,
+          },
+        ),
+      );
+    } catch (e) {
+      debugPrint('Error sending notification: $e');
+    }
   }
 
   void dispose() {

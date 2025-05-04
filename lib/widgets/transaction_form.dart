@@ -25,6 +25,7 @@ class _TransactionFormState extends State<TransactionForm> {
   late double amount;
   late bool isCredit;
   late bool isScheduled;
+  late TransactionCategory category;
   DateTime? scheduledDate;
 
   @override
@@ -36,11 +37,13 @@ class _TransactionFormState extends State<TransactionForm> {
       isCredit = widget.initialData!.isCredit;
       isScheduled = widget.initialData!.isScheduled;
       scheduledDate = widget.initialData!.scheduledDate;
+      category = widget.initialData!.category;
     } else {
       title = '';
       amount = 0.0;
       isCredit = true;
       isScheduled = false;
+      category = TransactionCategory.salary;
     }
   }
 
@@ -108,26 +111,29 @@ class _TransactionFormState extends State<TransactionForm> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text("Income"),
-                        Radio<bool>(
-                          value: true,
-                          groupValue: isCredit,
-                          onChanged: (value) {
-                            setState(() => isCredit = value ?? true);
-                          },
-                        ),
-                        Text("Expense"),
-                        Radio<bool>(
-                          value: false,
-                          groupValue: isCredit,
-                          onChanged: (value) {
-                            setState(() => isCredit = value ?? false);
-                          },
-                        ),
-                      ],
+                    DropdownButtonFormField<TransactionCategory>(
+                      value: category,
+                      decoration: const InputDecoration(
+                        labelText: 'Category',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: TransactionCategory.values
+                          .where((cat) => 
+                              isCredit ? 
+                              cat.toString().contains('Income') || cat == TransactionCategory.salary :
+                              !cat.toString().contains('Income'))
+                          .map((cat) {
+                        final categoryName = cat.toString().split('.').last;
+                        return DropdownMenuItem(
+                          value: cat,
+                          child: Text('${categoryName[0].toUpperCase()}${categoryName.substring(1)}'),
+                        );
+                      }).toList(),
+                      onChanged: (TransactionCategory? value) {
+                        if (value != null) {
+                          setState(() => category = value);
+                        }
+                      },
                     ),
                     const SizedBox(height: 12),
                     Divider(),
@@ -140,9 +146,11 @@ class _TransactionFormState extends State<TransactionForm> {
                               isScheduled = value ?? false;
                               if (!isScheduled) {
                                 scheduledDate = null;
-                              } else scheduledDate ??= DateTime.now().add(
+                              } else {
+                                scheduledDate ??= DateTime.now().add(
                                   const Duration(days: 7),
                                 );
+                              }
                             });
                           },
                         ),
@@ -217,6 +225,7 @@ class _TransactionFormState extends State<TransactionForm> {
                             isCredit: isCredit,
                             isScheduled: isScheduled,
                             scheduledDate: scheduledDate,
+                            category: category,
                           );
 
                           widget.onSave(transaction);

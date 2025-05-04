@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../services/firebase_service.dart';
 import '../models/transaction.dart';
-import 'package:uuid/uuid.dart';
+import '../models/notification.dart';
+import '../services/notification_service.dart';
+
 
 class TestTransactionPage extends StatefulWidget {
   const TestTransactionPage({super.key});
@@ -13,11 +15,13 @@ class TestTransactionPage extends StatefulWidget {
 class _TestTransactionPageState extends State<TestTransactionPage> {
   final _formKey = GlobalKey<FormState>();
   final _firebaseService = FirebaseService();
+  final _notificationService = NotificationService();
   final _titleController = TextEditingController();
   final _amountController = TextEditingController();
   bool _isCredit = false;
   bool _isScheduled = false;
-  DateTime _date = DateTime.now();
+  TransactionCategory _selectedCategory = TransactionCategory.food;
+  final DateTime _date = DateTime.now();
 
   @override
   void dispose() {
@@ -43,9 +47,23 @@ class _TestTransactionPageState extends State<TestTransactionPage> {
           amount: double.parse(_amountController.text),
           isCredit: _isCredit,
           isScheduled: _isScheduled,
+          category: _selectedCategory,
         );
 
         await _firebaseService.createTransaction(transaction);
+        
+        // Send FCM notification
+        await _firebaseService.sendTransactionNotification(transaction);
+        
+        // Create and store local notification
+        final notification = NotificationData(
+          title: 'Transaction Created',
+          message: '${transaction.title} - ${transaction.amount.toStringAsFixed(2)} Rwf has been ${transaction.isCredit ? 'added' : 'deducted'}',
+          timestamp: DateTime.now(),
+          transactionId: transaction.id,
+        );
+        
+        await _notificationService.addNotification(notification);
         
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -117,6 +135,10 @@ class _TestTransactionPageState extends State<TestTransactionPage> {
                       onChanged: (value) {
                         setState(() {
                           _isCredit = value ?? false;
+                          // Reset category based on transaction type
+                          _selectedCategory = _isCredit 
+                              ? TransactionCategory.salary 
+                              : TransactionCategory.food;
                         });
                       },
                     ),
@@ -133,6 +155,33 @@ class _TestTransactionPageState extends State<TestTransactionPage> {
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<TransactionCategory>(
+                value: _selectedCategory,
+                decoration: const InputDecoration(
+                  labelText: 'Category',
+                  border: OutlineInputBorder(),
+                ),
+                items: TransactionCategory.values
+                    .where((category) => 
+                        _isCredit ? 
+                        category.toString().contains('Income') || category == TransactionCategory.salary :
+                        !category.toString().contains('Income'))
+                    .map((category) {
+                  final categoryName = category.toString().split('.').last;
+                  return DropdownMenuItem(
+                    value: category,
+                    child: Text('${categoryName[0].toUpperCase()}${categoryName.substring(1)}'),
+                  );
+                }).toList(),
+                onChanged: (TransactionCategory? value) {
+                  if (value != null) {
+                    setState(() {
+                      _selectedCategory = value;
+                    });
+                  }
+                },
               ),
               const SizedBox(height: 16),
               ElevatedButton(
