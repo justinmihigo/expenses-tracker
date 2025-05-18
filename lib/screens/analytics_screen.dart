@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../models/transaction.dart';
 import '../providers/wallet_provider.dart';
-import '../styles/app_colors.dart';
+// import '../styles/app_colors.dart';
 import '../sqlite.dart';
 import 'package:provider/provider.dart';
 
@@ -173,17 +173,17 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                         });
                       },
                       style: ButtonStyle(
-                        backgroundColor: MaterialStateProperty.resolveWith<Color>(
-                          (Set<MaterialState> states) {
-                            if (states.contains(MaterialState.selected)) {
+                        backgroundColor: WidgetStateProperty.resolveWith<Color>(
+                          (Set<WidgetState> states) {
+                            if (states.contains(WidgetState.selected)) {
                               return const Color(0xFF2C1F63);
                             }
                             return Colors.white;
                           },
                         ),
-                        foregroundColor: MaterialStateProperty.resolveWith<Color>(
-                          (Set<MaterialState> states) {
-                            if (states.contains(MaterialState.selected)) {
+                        foregroundColor: WidgetStateProperty.resolveWith<Color>(
+                          (Set<WidgetState> states) {
+                            if (states.contains(WidgetState.selected)) {
                               return Colors.white;
                             }
                             return const Color(0xFF2C1F63);
@@ -304,13 +304,16 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: const Color(0xFF2C1F63).withOpacity(0.2)),
                     ),
+                    // make this line chart plot data from sqlite
                     child: LineChart(
                       LineChartData(
                         borderData: FlBorderData(show: false),
                         gridData: FlGridData(
                           show: true,
                           drawVerticalLine: false,
-                          horizontalInterval: 1000,
+                          horizontalInterval: timeSeriesData.isNotEmpty 
+                              ? (timeSeriesData.map((e) => e['income']! > e['expenses']! ? e['income']! : e['expenses']!).reduce((a, b) => a > b ? a : b) / 5)
+                              : 1000,
                           getDrawingHorizontalLine: (value) {
                             return FlLine(
                               color: const Color(0xFF2C1F63).withOpacity(0.1),
@@ -330,36 +333,21 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                             sideTitles: SideTitles(
                               showTitles: true,
                               reservedSize: 30,
-                              interval: 10,
+                              interval: timeSeriesData.length > 10 ? (timeSeriesData.length / 5).ceil().toDouble() : 1,
                               getTitlesWidget: (value, meta) {
-                                const style = TextStyle(
-                                  color: Color(0xFF2C1F63),
-                                  fontSize: 10,
-                                );
-                                Widget text;
-                                switch (value.toInt()) {
-                                  case 0:
-                                    text = const Text('JAN', style: style);
-                                    break;
-                                  case 10:
-                                    text = const Text('FEB', style: style);
-                                    break;
-                                  case 20:
-                                    text = const Text('MAR', style: style);
-                                    break;
-                                  case 30:
-                                    text = const Text('APR', style: style);
-                                    break;
-                                  case 40:
-                                    text = const Text('MAY', style: style);
-                                    break;
-                                  case 50:
-                                    text = const Text('JUN', style: style);
-                                    break;
-                                  default:
-                                    text = const Text('', style: style);
+                                if (value.toInt() >= 1 && value.toInt() <= timeSeriesData.length) {
+                                  return SideTitleWidget(
+                                    meta: meta,
+                                    child: Text(
+                                      value.toInt().toString(),
+                                      style: const TextStyle(
+                                        color: Color(0xFF2C1F63),
+                                        fontSize: 10,
+                                      ),
+                                    ),
+                                  );
                                 }
-                                return SideTitleWidget(meta: meta, child: text);
+                                return const Text('');
                               },
                             ),
                           ),
@@ -367,45 +355,32 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                             sideTitles: SideTitles(
                               showTitles: true,
                               reservedSize: 42,
-                              interval: 10,
+                              interval: timeSeriesData.isNotEmpty 
+                                  ? (timeSeriesData.map((e) => e['income']! > e['expenses']! ? e['income']! : e['expenses']!).reduce((a, b) => a > b ? a : b) / 5)
+                                  : 1000,
                               getTitlesWidget: (value, meta) {
-                                const style = TextStyle(
-                                  color: Color(0xFF2C1F63),
-                                  fontSize: 10,
+                                return Text(
+                                  _formatAmount(value),
+                                  style: const TextStyle(
+                                    color: Color(0xFF2C1F63),
+                                    fontSize: 10,
+                                  ),
+                                  textAlign: TextAlign.left,
                                 );
-                                String text;
-                                switch (value.toInt()) {
-                                  case 10:
-                                    text = '10K';
-                                    break;
-                                  case 20:
-                                    text = '20K';
-                                    break;
-                                  case 30:
-                                    text = '30K';
-                                    break;
-                                  case 40:
-                                    text = '40K';
-                                    break;
-                                  case 50:
-                                    text = '50K';
-                                    break;
-                                  default:
-                                    return Container();
-                                }
-                                return Text(text, style: style, textAlign: TextAlign.left);
                               },
                             ),
                           ),
                         ),
                         minX: 0,
+                        maxX: timeSeriesData.length.toDouble(),
                         minY: 0,
-                        maxX: 50,
-                        maxY: 50,
+                        maxY: timeSeriesData.isNotEmpty 
+                            ? timeSeriesData.map((e) => e['income']! > e['expenses']! ? e['income']! : e['expenses']!).reduce((a, b) => a > b ? a : b) * 1.2
+                            : 5000,
                         lineBarsData: [
                           LineChartBarData(
-                            spots: timeSeriesData.map((e) => 
-                              FlSpot(e['day']!.toDouble(), e['income']! / 1000)
+                            spots: timeSeriesData.asMap().entries.map((entry) => 
+                              FlSpot(entry.key.toDouble(), entry.value['income']!)
                             ).toList(),
                             isCurved: true,
                             color: Colors.green,
@@ -425,8 +400,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                             ),
                           ),
                           LineChartBarData(
-                            spots: timeSeriesData.map((e) => 
-                              FlSpot(e['day']!.toDouble(), e['expenses']! / 1000)
+                            spots: timeSeriesData.asMap().entries.map((entry) => 
+                              FlSpot(entry.key.toDouble(), entry.value['expenses']!)
                             ).toList(),
                             isCurved: true,
                             color: Colors.red,
@@ -473,17 +448,17 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                         });
                       },
                       style: ButtonStyle(
-                        backgroundColor: MaterialStateProperty.resolveWith<Color>(
-                          (Set<MaterialState> states) {
-                            if (states.contains(MaterialState.selected)) {
+                        backgroundColor: WidgetStateProperty.resolveWith<Color>(
+                          (Set<WidgetState> states) {
+                            if (states.contains(WidgetState.selected)) {
                               return const Color(0xFF2C1F63);
                             }
                             return Colors.white;
                           },
                         ),
-                        foregroundColor: MaterialStateProperty.resolveWith<Color>(
-                          (Set<MaterialState> states) {
-                            if (states.contains(MaterialState.selected)) {
+                        foregroundColor: WidgetStateProperty.resolveWith<Color>(
+                          (Set<WidgetState> states) {
+                            if (states.contains(WidgetState.selected)) {
                               return Colors.white;
                             }
                             return const Color(0xFF2C1F63);
@@ -515,9 +490,23 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     child: selectedChart == 'Pie' 
                       ? PieChart(
                           PieChartData(
-                            sections: _createPieSections(categoryData),
-                            centerSpaceRadius: 40,
+                            centerSpaceRadius: 30,
                             sectionsSpace: 2,
+                            startDegreeOffset: -90,
+                            sections: categoryData.entries.map((entry) {
+                              final index = categoryData.keys.toList().indexOf(entry.key);
+                              return PieChartSectionData(
+                                value: entry.value,
+                                title: '${entry.key}\n${_formatAmount(entry.value)}',
+                                color: _getCategoryColor(index),
+                                radius: 60,
+                                titleStyle: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              );
+                            }).toList(),
                           ),
                         )
                       : BarChart(
@@ -632,19 +621,23 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
   List<Map<String, double>> _getTimeSeriesData(List<TransactionData> transactions) {
     final timeSeriesMap = <int, Map<String, double>>{};
+    final now = DateTime.now();
+    final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
+    
+    // Initialize all days of the month
+    for (int i = 1; i <= daysInMonth; i++) {
+      timeSeriesMap[i] = {'day': i.toDouble(), 'income': 0, 'expenses': 0};
+    }
     
     for (var transaction in transactions) {
       final date = _parseDate(transaction.date);
-      final day = date.day;
-      
-      if (!timeSeriesMap.containsKey(day)) {
-        timeSeriesMap[day] = {'day': day.toDouble(), 'income': 0, 'expenses': 0};
-      }
-      
-      if (transaction.isCredit) {
-        timeSeriesMap[day]!['income'] = (timeSeriesMap[day]!['income'] ?? 0) + transaction.amount;
-      } else {
-        timeSeriesMap[day]!['expenses'] = (timeSeriesMap[day]!['expenses'] ?? 0) + transaction.amount;
+      if (date.month == now.month && date.year == now.year) {
+        final day = date.day;
+        if (transaction.isCredit) {
+          timeSeriesMap[day]!['income'] = (timeSeriesMap[day]!['income'] ?? 0) + transaction.amount;
+        } else {
+          timeSeriesMap[day]!['expenses'] = (timeSeriesMap[day]!['expenses'] ?? 0) + transaction.amount;
+        }
       }
     }
     

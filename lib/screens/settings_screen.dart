@@ -51,23 +51,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
-      appBar: AppBar(
-        title: const Text(
-          'Settings',
-          style: TextStyle(
-            color: Color(0xFF2C1F63),
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF2C1F63)),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
       body: ListView(
         children: [
+          const SizedBox(height: 16),
+          // Back button
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Color(0xFF2C1F63)),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                const Text(
+                  'Settings',
+                  style: TextStyle(
+                    color: Color(0xFF2C1F63),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 16),
           // Profile Section
           ListTile(

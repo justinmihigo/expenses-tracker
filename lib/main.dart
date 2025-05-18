@@ -1,4 +1,5 @@
 import 'package:expenses_tracker/api/firebase_api.dart';
+import 'package:expenses_tracker/auth/login.dart';
 import 'package:expenses_tracker/auth/signup.dart';
 import 'package:expenses_tracker/firebase_options.dart';
 import 'package:expenses_tracker/pages/onboarding/first_screen.dart';
@@ -20,12 +21,12 @@ import 'screens/budget_goals_screen.dart';
 
 final navigatorKey = GlobalKey<NavigatorState>();
 
-Future<bool> initializeApp() async {
+Future<Map<String, dynamic>> initializeApp() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   // Initialize Awesome Notifications
   await AwesomeNotifications().initialize(
-    null, // null means use default app icon
+    null,
     [
       NotificationChannel(
         channelKey: 'transactions',
@@ -56,11 +57,19 @@ Future<bool> initializeApp() async {
 
   // Initialize shared preferences
   final prefs = await SharedPreferences.getInstance();
-  return prefs.getBool("hasSeenOnBoarding") ?? false;
+  final hasSeenOnBoarding = prefs.getBool("hasSeenOnBoarding") ?? false;
+  final isLoggedIn = prefs.getBool("isLoggedIn") ?? false;
+  final userEmail = prefs.getString("userEmail") ?? "";
+
+  return {
+    'hasSeenOnBoarding': hasSeenOnBoarding,
+    'isLoggedIn': isLoggedIn,
+    'userEmail': userEmail,
+  };
 }
 
 void main() async {
-  final hasSeenOnBoarding = await initializeApp();
+  final appState = await initializeApp();
   
   runApp(
     MultiProvider(
@@ -69,14 +78,14 @@ void main() async {
         ChangeNotifierProvider(create: (context) => WalletProvider()),
         Provider(create: (context) => SecondScreen()),
       ],
-      child: MyApp(hasSeenOnBoarding: hasSeenOnBoarding),
+      child: MyApp(appState: appState),
     ),
   );
 }
 
 class MyApp extends StatelessWidget {
-  final bool hasSeenOnBoarding;
-  const MyApp({super.key, required this.hasSeenOnBoarding});
+  final Map<String, dynamic> appState;
+  const MyApp({super.key, required this.appState});
 
   @override
   Widget build(BuildContext context) {
@@ -123,14 +132,25 @@ class MyApp extends StatelessWidget {
       navigatorKey: navigatorKey,
       routes: {SignupScreen.route: (context) => const SignupScreen()},
       theme: appTheme,
-      home: const FirstScreen(),
+      home: _getInitialScreen(),
     );
+  }
+
+  Widget _getInitialScreen() {
+    if (!appState['hasSeenOnBoarding']) {
+      return const FirstScreen();
+    }
+    
+    if (appState['isLoggedIn']) {
+      return MyHomePage();
+    }
+    
+    return const LoginScreen();
   }
 }
 
 class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-  final String title;
+  const MyHomePage({super.key});
   @override
   State<MyHomePage> createState() => _MyHomePageState();
 }
@@ -143,18 +163,31 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   int currIndex = 0;
-  List<Widget> screens = [
-    HomeScreen(),
-    AnalyticsScreen(),
-    WalletScreen(),
-    const BudgetGoalsScreen(),
-    SettingsScreen(),
+  final List<Map<String, dynamic>> screens = [
+    {'screen': HomeScreen(), 'title': 'Dashboard'},
+    {'screen': AnalyticsScreen(), 'title': 'Analytics'},
+    {'screen': WalletScreen(), 'title': 'Wallet'},
+    {'screen': const BudgetGoalsScreen(), 'title': 'Budget Goals'},
+    {'screen': SettingsScreen(), 'title': 'Settings'},
   ];
 
   void _showAddTransaction() {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (context) => AddExpense()),
     );
+  }
+
+  Future<void> _logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isLoggedIn', false);
+    await prefs.remove('userEmail');
+    
+    if (mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        (route) => false,
+      );
+    }
   }
 
   @override
@@ -184,7 +217,7 @@ class _MyHomePageState extends State<MyHomePage> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildNavItem(0, Icons.home, 'Home'),
+                _buildNavItem(0, Icons.home, 'Dashboard'),
                 _buildNavItem(1, Icons.analytics, 'Analytics'),
                 const SizedBox(width: 60),
                 _buildNavItem(2, Icons.wallet, 'Wallet'),
@@ -221,7 +254,7 @@ class _MyHomePageState extends State<MyHomePage> {
           ),
         ],
       ),
-      body: Container(child: screens[currIndex]),
+      body: Container(child: screens[currIndex]['screen']),
     );
   }
 

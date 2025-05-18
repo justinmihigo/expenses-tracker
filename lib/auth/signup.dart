@@ -65,15 +65,6 @@ class _SignupScreen extends State<SignupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        forceMaterialTransparency: true,
-        leading: InkWell(
-          onTap: () {
-            Navigator.pop(context);
-          },
-          child: Icon(Icons.arrow_back),
-        ),
-      ),
       body: SingleChildScrollView(
         child: Center(
           child: Container(
@@ -81,8 +72,8 @@ class _SignupScreen extends State<SignupScreen> {
             width: 300,
             child: Column(
               spacing: 30,
-
               children: [
+                const SizedBox(height: 60), // Add some top padding
                 SizedBox(
                   width: 150,
                   height: 50,
@@ -134,8 +125,9 @@ class _SignupScreen extends State<SignupScreen> {
                   onPressed: () {
                     handleSignup();
                     if (response) {
-                      Navigator.of(context).push(
+                      Navigator.of(context).pushAndRemoveUntil(
                         MaterialPageRoute(builder: (context) => LoginScreen()),
+                        (route) => false,
                       );
                     }
                   },
@@ -153,10 +145,11 @@ class _SignupScreen extends State<SignupScreen> {
                   onTap: () async {
                     final response = await firebaseApi.loginWithGoogle();
                     if (response!) {
-                      Navigator.of(context).pushReplacement(
+                      Navigator.of(context).pushAndRemoveUntil(
                         MaterialPageRoute(
-                          builder: (context) => MyHomePage(title: "Home"),
+                          builder: (context) => const MyHomePage(),
                         ),
+                        (route) => false,
                       );
                     }
                   },
@@ -175,7 +168,7 @@ class _SignupScreen extends State<SignupScreen> {
                     ),
                     InkWell(
                       onTap: () {
-                        Navigator.of(context).push(
+                        Navigator.of(context).pushReplacement(
                           MaterialPageRoute(
                             builder: (context) => LoginScreen(),
                           ),

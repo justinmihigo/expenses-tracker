@@ -4,6 +4,7 @@ import 'package:expenses_tracker/main.dart';
 import 'package:expenses_tracker/styles/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -40,6 +41,11 @@ class _LoginScreenState extends State<LoginScreenState> {
     debugPrint(passwordController.text.trim());
 
     if (login) {
+      // Save login state
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isLoggedIn', true);
+      await prefs.setString('userEmail', emailController.text.trim());
+      
       setState(() {
         response = login;
       });
@@ -50,15 +56,6 @@ class _LoginScreenState extends State<LoginScreenState> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        forceMaterialTransparency: true,
-        leading: InkWell(
-          onTap: () {
-            Navigator.pop(context);
-          },
-          child: Icon(Icons.arrow_back),
-        ),
-      ),
       body: SingleChildScrollView(
         child: Center(
           child: SizedBox(
@@ -66,6 +63,7 @@ class _LoginScreenState extends State<LoginScreenState> {
             child: Column(
               spacing: 30,
               children: [
+                const SizedBox(height: 60), // Add some top padding
                 SizedBox(
                   width: 150,
                   height: 50,
@@ -110,10 +108,11 @@ class _LoginScreenState extends State<LoginScreenState> {
                     await handleSignin();
                     debugPrint(response.toString());
                     if (response) {
-                      Navigator.of(context).push(
+                      Navigator.of(context).pushAndRemoveUntil(
                         MaterialPageRoute(
-                          builder: (context) => MyHomePage(title: 'Home'),
+                          builder: (context) => const MyHomePage(),
                         ),
+                        (route) => false,
                       );
                     }
                   },
@@ -130,11 +129,17 @@ class _LoginScreenState extends State<LoginScreenState> {
                   onTap: () async {
                     final response = await firebaseApi.loginWithGoogle();
                     if (response!) {
+                      // Save login state for Google sign-in
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.setBool('isLoggedIn', true);
+                      await prefs.setString('userEmail', 'google_user');
+                      
                       Fluttertoast.showToast(msg: "Login successful");
-                      Navigator.of(context).pushReplacement(
+                      Navigator.of(context).pushAndRemoveUntil(
                         MaterialPageRoute(
-                          builder: (context) => MyHomePage(title: "Home"),
+                          builder: (context) => const MyHomePage(),
                         ),
+                        (route) => false,
                       );
                     } else {
                       Fluttertoast.showToast(msg: "Failed to login");
@@ -157,7 +162,7 @@ class _LoginScreenState extends State<LoginScreenState> {
                       ),
                       InkWell(
                         onTap: () {
-                          Navigator.of(context).push(
+                          Navigator.of(context).pushReplacement(
                             MaterialPageRoute(
                               builder: (context) => SignupScreen(),
                             ),
