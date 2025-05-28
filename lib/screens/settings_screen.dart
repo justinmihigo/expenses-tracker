@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:expenses_tracker/auth/login.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -36,9 +37,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await prefs.setString('currency', currency);
   }
 
+    Future<void> _logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isLoggedIn', false);
+    await prefs.remove('userEmail');
+    
+    if (mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        (route) => false,
+      );
+    }
+  }
+
   Future<void> _signOut() async {
     try {
       await FirebaseAuth.instance.signOut();
+      await _logout();
       // Navigate to login screen or handle sign out
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(

@@ -1,5 +1,6 @@
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:flutter/foundation.dart';
 
 class SQLiteDB {
   static SQLiteDB? _instance;
@@ -21,16 +22,23 @@ class SQLiteDB {
   Future<Database> _initDatabase() async {
     final String databasePath = await getDatabasesPath();
     final String path = join(databasePath, 'expenses.db');
+    debugPrint('Initializing database at: $path');
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (Database db, int version) async {
+        debugPrint('Creating database tables for version $version');
         await _createTables(db);
       },
       onUpgrade: (Database db, int oldVersion, int newVersion) async {
+        debugPrint('Upgrading database from version $oldVersion to $newVersion');
         if (oldVersion < 1) {
           await _createTables(db);
+        }
+        if (oldVersion < 2) {
+          debugPrint('Adding category column to transactions table');
+          await db.execute('ALTER TABLE transactions ADD COLUMN category TEXT');
         }
       },
     );
@@ -47,6 +55,7 @@ class SQLiteDB {
         isCredit INTEGER NOT NULL,
         isScheduled INTEGER NOT NULL,
         scheduledDate TEXT,
+        category TEXT,
         synced INTEGER NOT NULL DEFAULT 0
       )
     ''');
@@ -95,23 +104,40 @@ class SQLiteDB {
   // Transaction methods
   Future<void> insertTransaction(Map<String, dynamic> transaction) async {
     final db = await database;
-    await db.insert(
-      'transactions',
-      transaction,
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    debugPrint('Inserting transaction: $transaction');
+    try {
+      await db.insert(
+        'transactions',
+        transaction,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      debugPrint('Transaction inserted successfully');
+    } catch (e) {
+      debugPrint('Error inserting transaction: $e');
+      rethrow;
+    }
   }
 
   Future<List<Map<String, dynamic>>> getTransactions({bool? scheduled}) async {
     final db = await database;
-    if (scheduled != null) {
-      return db.query(
-        'transactions',
-        where: 'isScheduled = ?',
-        whereArgs: [scheduled ? 1 : 0],
-      );
+    debugPrint('Getting transactions${scheduled != null ? ' (scheduled: $scheduled)' : ''}');
+    try {
+      List<Map<String, dynamic>> result;
+      if (scheduled != null) {
+        result = await db.query(
+          'transactions',
+          where: 'isScheduled = ?',
+          whereArgs: [scheduled ? 1 : 0],
+        );
+      } else {
+        result = await db.query('transactions');
+      }
+      debugPrint('Retrieved ${result.length} transactions');
+      return result;
+    } catch (e) {
+      debugPrint('Error getting transactions: $e');
+      rethrow;
     }
-    return db.query('transactions');
   }
 
   Future<void> updateTransaction(String id, Map<String, dynamic> transaction) async {

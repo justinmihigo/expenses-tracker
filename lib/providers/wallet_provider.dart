@@ -2,21 +2,20 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/notification.dart';
 import '../models/transaction.dart';
-import '../services/firebase_service.dart';
 import '../sqlite.dart';
+import '../services/notification_service.dart';
 import 'package:expenses_tracker/models/budget_goal.dart';
 import 'package:expenses_tracker/models/wallet_data.dart';
 
 class WalletProvider extends ChangeNotifier {
   final _db = SQLiteDB.instance;
-  final _firebaseService = FirebaseService();
+  final _notificationService = NotificationService();
   
   List<TransactionData> _transactions = [];
   List<TransactionData> _upcomingBills = [];
   List<NotificationData> _notifications = [];
   double _totalBalance = 0.0;
   bool _isLoading = true;
-  bool _needsSync = false;
   WalletData _walletData = WalletData.initial();
   BudgetGoal? _currentBudgetGoal;
 
@@ -29,7 +28,6 @@ class WalletProvider extends ChangeNotifier {
   List<NotificationData> get notifications => _notifications;
   double get totalBalance => _totalBalance;
   bool get isLoading => _isLoading;
-  bool get needsSync => _needsSync;
   WalletData get walletData => _walletData;
   BudgetGoal? get currentBudgetGoal => _currentBudgetGoal;
 
@@ -49,84 +47,68 @@ class WalletProvider extends ChangeNotifier {
 
   Future<void> _loadLocalData() async {
     try {
-      final transactionMaps = await _db.getTransactions();
-      _transactions = transactionMaps
-          .map((map) => TransactionData.fromMap(map))
-          .toList();
+      debugPrint('Loading local data from SQLite...');
+      final db = await _db.database;
+      if (db == null) {
+        debugPrint('Database is null, cannot load data');
+        return;
+      }
 
-      final upcomingMaps = await _db.getTransactions(scheduled: true);
-      _upcomingBills = upcomingMaps
-          .map((map) => TransactionData.fromMap(map))
-          .toList();
+      // Load transactions
+      final transactionsList = await _db.getTransactions();
+      debugPrint('Loaded ${transactionsList.length} transactions from database');
+      for (var transaction in transactionsList) {
+        debugPrint('Transaction: ${transaction['title']} - ${transaction['amount']} - ${transaction['category']} - ${transaction['date']}');
+      }
+      _transactions = transactionsList.map((map) => TransactionData.fromMap(map)).toList();
+      debugPrint('Converted ${_transactions.length} transactions to TransactionData objects');
+      notifyListeners();
+      debugPrint('Notified listeners about transaction updates');
 
-      final notificationMaps = await _db.getNotifications();
-      _notifications = notificationMaps
-          .map((map) => NotificationData.fromMap(map))
-          .toList();
+      // Load bills
+      final billsList = await _db.getTransactions(scheduled: true);
+      debugPrint('Loaded ${billsList.length} bills from database');
+      _upcomingBills = billsList.map((map) => TransactionData.fromMap(map)).toList();
+      debugPrint('Converted ${_upcomingBills.length} bills to TransactionData objects');
+      notifyListeners();
+      debugPrint('Notified listeners about bill updates');
 
-      _totalBalance = await _db.getTotalBalance();
-    } catch (e) {
+      // Load notifications
+      final notificationsList = await _db.getNotifications();
+      debugPrint('Loaded ${notificationsList.length} notifications from database');
+      _notifications = notificationsList.map((map) => NotificationData.fromMap(map)).toList();
+      debugPrint('Converted ${_notifications.length} notifications to NotificationData objects');
+
+      // Calculate total balance
+      _calculateTotalBalance();
+      debugPrint('Total balance calculated: $_totalBalance');
+
+      notifyListeners();
+    } catch (e, stackTrace) {
       debugPrint('Error loading local data: $e');
+      debugPrint('Stack trace: $stackTrace');
     }
   }
 
-  Future<void> syncWithFirebase() async {
-    try {
-      _isLoading = true;
-      notifyListeners();
-      
-      // Sync data to Firebase
-      await _firebaseService.syncTransactions(_transactions + _upcomingBills);
-      await _firebaseService.updateTotalBalance(_totalBalance);
-      
-      _needsSync = false;
-      notifyListeners();
-    } catch (e) {
-      debugPrint('Error syncing with Firebase: $e');
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
+  Future<void> refreshData() async {
+    await _loadLocalData();
+    notifyListeners();
   }
-
-  // Future<void> pullFromFirebase() async {
-  //   try {
-  //     _isLoading = true;
-  //     notifyListeners();
-
-  //     // Get latest data from Firebase
-  //     final firebaseTransactions = await _firebaseService.getTransactions();
-  //     final firebaseBalance = await _firebaseService.getTotalBalance();
-
-  //     // Update local database
-  //     for (var transaction in firebaseTransactions) {
-  //       await _db.insertTransaction(transaction.toMap());
-  //     }
-  //     await _db.updateTotalBalance(firebaseBalance);
-
-  //     // Reload local data
-  //     await _loadLocalData();
-  //   } catch (e) {
-  //     debugPrint('Error pulling from Firebase: $e');
-  //   } finally {
-  //     _isLoading = false;
-  //     notifyListeners();
-  //   }
-  // }
 
   Future<void> addTransaction(TransactionData transaction) async {
     try {
+      debugPrint('Adding transaction: ${transaction.title}');
       await _db.insertTransaction(transaction.toMap());
-      if (transaction.isScheduled) {
-        _upcomingBills.add(transaction);
-      } else {
-        _transactions.add(transaction);
-        _updateTotalBalance(transaction.amount * (transaction.isCredit ? 1 : -1));
-      }
-      _needsSync = true;
+      debugPrint('Transaction inserted successfully');
+      
+      _transactions.add(transaction);
+      _calculateTotalBalance();
       notifyListeners();
-    } catch (e) {
+      debugPrint('Notified listeners after adding transaction');
+    } catch (e, stackTrace) {
       debugPrint('Error adding transaction: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
     }
   }
 
@@ -150,7 +132,6 @@ class WalletProvider extends ChangeNotifier {
         }
       }
       
-      _needsSync = true;
       notifyListeners();
     } catch (e) {
       debugPrint('Error updating transaction: $e');
@@ -168,7 +149,6 @@ class WalletProvider extends ChangeNotifier {
         _updateTotalBalance(-transaction.amount * (transaction.isCredit ? 1 : -1));
       }
       
-      _needsSync = true;
       notifyListeners();
     } catch (e) {
       debugPrint('Error deleting transaction: $e');
@@ -177,47 +157,25 @@ class WalletProvider extends ChangeNotifier {
 
   Future<void> markNotificationAsRead(String id) async {
     try {
+      debugPrint('Marking notification $id as read...');
       await _db.markNotificationAsRead(id);
+      
+      // Update local notifications list
       final index = _notifications.indexWhere((n) => n.id == id);
       if (index != -1) {
-        final notification = _notifications[index];
-        _notifications[index] = NotificationData(
-          id: notification.id,
-          title: notification.title,
-          message: notification.message,
-          timestamp: notification.timestamp,
-          isRead: true,
-          transactionId: notification.transactionId,
-        );
+        _notifications[index] = _notifications[index].copyWith(isRead: true);
         notifyListeners();
       }
+      
+      debugPrint('Notification marked as read successfully');
     } catch (e) {
       debugPrint('Error marking notification as read: $e');
     }
   }
 
-  Future<void> checkUpcomingBills() async {
-    // Implementation for checking upcoming bills
-    // This will be called periodically to check for due bills
-  }
-
-  Future<void> refreshData() async {
-    _isLoading = true;
-    notifyListeners();
-
-    try {
-      await _loadLocalData();
-    } catch (e) {
-      debugPrint('Error refreshing data: $e');
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  void _updateTotalBalance(double change) {
-    _totalBalance += change;
-    _db.updateTotalBalance(_totalBalance);
+  Future<void> _updateTotalBalance(double amount) async {
+    _totalBalance += amount;
+    await _db.updateTotalBalance(_totalBalance);
   }
 
   void setWalletData(WalletData data) {
@@ -254,7 +212,7 @@ class WalletProvider extends ChangeNotifier {
     for (var entry in _currentBudgetGoal!.categoryLimits.entries) {
       final category = TransactionCategory.values.firstWhere(
         (c) => c.toString().split('.').last == entry.key,
-        orElse: () => TransactionCategory.otherExpense,
+        orElse: () => TransactionCategory.others,
       );
       
       final total = totals[category] ?? 0;
@@ -279,5 +237,51 @@ class WalletProvider extends ChangeNotifier {
     
     final savings = totalIncome - totalExpenses;
     return (savings / _currentBudgetGoal!.savingsTarget) * 100;
+  }
+
+  Future<void> checkUpcomingBills() async {
+    try {
+      final now = DateTime.now();
+      final upcomingBills = _upcomingBills.where((bill) {
+        if (bill.scheduledDate == null) return false;
+        final daysUntilDue = bill.scheduledDate!.difference(now).inDays;
+        return daysUntilDue >= 0 && daysUntilDue <= 2;
+      }).toList();
+
+      for (final bill in upcomingBills) {
+        if (bill.scheduledDate == null) continue;
+        final daysUntilDue = bill.scheduledDate!.difference(now).inDays;
+        
+        // Check if we already have a recent notification for this bill
+        final hasRecentNotification = _notifications.any((n) =>
+            n.transactionId == bill.id &&
+            n.title.contains('Upcoming Bill') &&
+            n.timestamp.isAfter(now.subtract(const Duration(days: 1))));
+
+        if (!hasRecentNotification) {
+          final notification = NotificationData(
+            title: 'Upcoming Bill',
+            message: '${bill.title} - ${bill.amount.toStringAsFixed(2)} Rwf is due ${daysUntilDue == 0 ? 'today' : 'in $daysUntilDue days'}',
+            timestamp: now,
+            transactionId: bill.id,
+          );
+
+          await _notificationService.addNotification(notification);
+          _notifications.add(notification);
+          notifyListeners();
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking upcoming bills: $e');
+    }
+  }
+
+  void _calculateTotalBalance() {
+    debugPrint('Calculating total balance...');
+    _totalBalance = _transactions.fold<double>(
+      0,
+      (sum, transaction) => sum + (transaction.isCredit ? transaction.amount : -transaction.amount),
+    );
+    debugPrint('New total balance: $_totalBalance');
   }
 }

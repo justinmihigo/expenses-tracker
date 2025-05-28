@@ -1,30 +1,35 @@
+import 'package:expenses_tracker/tabs/add_expense.dart';
 import 'package:flutter/material.dart';
 import '../screens/savings_screen.dart';
 import '../screens/history_screen.dart';
 import '../models/transaction.dart';
 import '../widgets/transaction_form.dart';
+import 'package:provider/provider.dart';
+import '../providers/wallet_provider.dart';
+import '../styles/app_colors.dart';
 
 class WalletActions extends StatelessWidget {
-  final Function(TransactionData) onTransactionAdded;
-  final List<TransactionData> transactions;
-  final List<TransactionData> upcomingBills;
-
-  const WalletActions({
-    required this.onTransactionAdded,
-    required this.transactions,
-    required this.upcomingBills,
-    super.key,
-  });
+  const WalletActions({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<WalletProvider>();
+    
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         WalletActionButton(
           icon: Icons.add,
           label: "Add Transaction",
-          onPressed: () => _showAddTransactionDialog(context),
+          onPressed: () async {
+            await Navigator.of(context).push(
+              MaterialPageRoute(builder: (context) => const AddExpense()),
+            );
+            // Refresh data when returning from add expense screen
+            if (context.mounted) {
+              await provider.refreshData();
+            }
+          }
         ),
         WalletActionButton(
           icon: Icons.savings,
@@ -46,26 +51,14 @@ class WalletActions extends StatelessWidget {
               context,
               MaterialPageRoute(
                 builder: (context) => HistoryScreen(
-                  transactions: transactions,
-                  upcomingBills: upcomingBills,
+                  transactions: provider.transactions,
+                  upcomingBills: provider.upcomingBills,
                 ),
               ),
             );
           },
         ),
       ],
-    );
-  }
-
-  void _showAddTransactionDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return TransactionForm(
-          onSave: onTransactionAdded,
-          onClose: () => Navigator.of(context).pop(),
-        );
-      },
     );
   }
 }
@@ -88,13 +81,19 @@ class WalletActionButton extends StatelessWidget {
       onTap: onPressed,
       child: Column(
         children: [
-          CircleAvatar(
-            radius: 30,
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            child: Icon(icon, color: Theme.of(context).colorScheme.onSecondary),
+          Icon(
+            icon,
+            size: 32,
+            color: AppColors.primary,
           ),
           const SizedBox(height: 5),
-          Text(label, style: TextStyle(fontSize: 14)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.primary,
+            ),
+          ),
         ],
       ),
     );

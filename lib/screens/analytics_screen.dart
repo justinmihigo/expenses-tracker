@@ -312,7 +312,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                           show: true,
                           drawVerticalLine: false,
                           horizontalInterval: timeSeriesData.isNotEmpty 
-                              ? (timeSeriesData.map((e) => e['income']! > e['expenses']! ? e['income']! : e['expenses']!).reduce((a, b) => a > b ? a : b) / 5)
+                              ? (timeSeriesData.map((e) => e['income']! > e['expenses']! ? e['income']! : e['expenses']!).reduce((a, b) => a > b ? a : b) / 5).clamp(100.0, double.infinity)
                               : 1000,
                           getDrawingHorizontalLine: (value) {
                             return FlLine(
@@ -333,13 +333,16 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                             sideTitles: SideTitles(
                               showTitles: true,
                               reservedSize: 30,
-                              interval: timeSeriesData.length > 10 ? (timeSeriesData.length / 5).ceil().toDouble() : 1,
+                              interval: timeSeriesData.length > 10 
+                                  ? (timeSeriesData.length / 5).ceil().toDouble().clamp(1.0, double.infinity)
+                                  : 1.0,
                               getTitlesWidget: (value, meta) {
                                 if (value.toInt() >= 1 && value.toInt() <= timeSeriesData.length) {
+                                  final date = DateTime(DateTime.now().year, DateTime.now().month, value.toInt());
                                   return SideTitleWidget(
                                     meta: meta,
                                     child: Text(
-                                      value.toInt().toString(),
+                                      '${date.day}',
                                       style: const TextStyle(
                                         color: Color(0xFF2C1F63),
                                         fontSize: 10,
@@ -356,9 +359,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                               showTitles: true,
                               reservedSize: 42,
                               interval: timeSeriesData.isNotEmpty 
-                                  ? (timeSeriesData.map((e) => e['income']! > e['expenses']! ? e['income']! : e['expenses']!).reduce((a, b) => a > b ? a : b) / 5)
-                                  : 1000,
+                                  ? (timeSeriesData.map((e) => e['income']! > e['expenses']! ? e['income']! : e['expenses']!).reduce((a, b) => a > b ? a : b) / 5).clamp(100.0, double.infinity)
+                                  : 1000.0,
                               getTitlesWidget: (value, meta) {
+                                if (value <= 0) return const Text('');
                                 return Text(
                                   _formatAmount(value),
                                   style: const TextStyle(
@@ -375,8 +379,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                         maxX: timeSeriesData.length.toDouble(),
                         minY: 0,
                         maxY: timeSeriesData.isNotEmpty 
-                            ? timeSeriesData.map((e) => e['income']! > e['expenses']! ? e['income']! : e['expenses']!).reduce((a, b) => a > b ? a : b) * 1.2
-                            : 5000,
+                            ? (timeSeriesData.map((e) => e['income']! > e['expenses']! ? e['income']! : e['expenses']!).reduce((a, b) => a > b ? a : b) * 1.2).clamp(1000.0, double.infinity)
+                            : 5000.0,
                         lineBarsData: [
                           LineChartBarData(
                             spots: timeSeriesData.asMap().entries.map((entry) => 
@@ -596,7 +600,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   List<TransactionData> _filterTransactionsByPeriod(List<TransactionData> transactions) {
     final now = DateTime.now();
     return transactions.where((t) {
-      final date = _parseDate(t.date);
+      final date = t.parsedDate;
       switch (selectedPeriod) {
         case 'Week':
           return now.difference(date).inDays <= 7;
@@ -630,7 +634,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     }
     
     for (var transaction in transactions) {
-      final date = _parseDate(transaction.date);
+      final date = transaction.parsedDate;
       if (date.month == now.month && date.year == now.year) {
         final day = date.day;
         if (transaction.isCredit) {
@@ -691,25 +695,5 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       Colors.red,
     ];
     return colors[index % colors.length];
-  }
-
-  DateTime _parseDate(String dateStr) {
-    if (dateStr == "Today") {
-      return DateTime.now();
-    } else if (dateStr == "Yesterday") {
-      return DateTime.now().subtract(const Duration(days: 1));
-    } else {
-      final months = {
-        'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
-        'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
-      };
-      
-      final parts = dateStr.split(' ');
-      final month = months[parts[0]] ?? 1;
-      final day = int.parse(parts[1].replaceAll(',', ''));
-      final year = int.parse(parts[2]);
-      
-      return DateTime(year, month, day);
-    }
   }
 }

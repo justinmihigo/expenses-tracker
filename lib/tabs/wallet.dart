@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:expenses_tracker/pages/test_transaction_page.dart';
+import 'package:expenses_tracker/screens/notifications_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/wallet_provider.dart';
@@ -9,6 +9,10 @@ import '../widgets/transactions_list.dart';
 import '../widgets/upcoming_bills_list.dart';
 import '../widgets/transaction_form.dart';
 import '../sqlite.dart';
+import '../styles/app_colors.dart';
+import '../models/transaction.dart';
+import '../services/notification_service.dart';
+import 'package:awesome_notifications/awesome_notifications.dart';
 
 class WalletScreen extends StatefulWidget {
   const WalletScreen({super.key});
@@ -19,350 +23,283 @@ class WalletScreen extends StatefulWidget {
 
 class _WalletScreenState extends State<WalletScreen> {
   int selectedIndex = 0;
+  Timer? _refreshTimer;
   Timer? _upcomingBillsCheckTimer;
-  double totalBalance = 0.0;
+  final _notificationService = NotificationService();
 
   @override
   void initState() {
     super.initState();
-    _loadTotalBalance();
+    debugPrint('WalletScreen.initState() called');
+    _initializeData();
+    _initializeNotifications();
+    
+    // Set up periodic refresh every 30 seconds
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) {
+        debugPrint('WalletScreen: Periodic refresh triggered');
+        _handleRefresh();
+      },
+    );
+
+    // Check upcoming bills every hour
     _upcomingBillsCheckTimer = Timer.periodic(
       const Duration(hours: 1),
-      (_) => context.read<WalletProvider>().checkUpcomingBills(),
+      (_) {
+        debugPrint('WalletScreen: Checking upcoming bills');
+        context.read<WalletProvider>().checkUpcomingBills();
+      },
     );
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _upcomingBillsCheckTimer?.cancel();
     super.dispose();
   }
 
-  String _formatAmount(double amount) {
-    if (amount >= 1000000) {
-      return '${(amount / 1000000).toStringAsFixed(1)}M';
-    } else if (amount >= 1000) {
-      return '${(amount / 1000).toStringAsFixed(1)}K';
-    } else {
-      return amount.toStringAsFixed(0);
+  Future<void> _initializeData() async {
+    debugPrint('WalletScreen: Initializing data...');
+    final provider = context.read<WalletProvider>();
+    await provider.refreshData();
+    debugPrint('WalletScreen: Data refreshed, transactions count: ${provider.transactions.length}');
+    if (mounted) {
+      setState(() {});
     }
   }
 
-  Future<void> _loadTotalBalance() async {
-    final transactions = await SQLiteDB.instance.getTransactions();
-    double balance = 0.0;
+  Future<void> _initializeNotifications() async {
+    await AwesomeNotifications().initialize(
+      null,
+      [
+        NotificationChannel(
+          channelKey: 'transactions',
+          channelName: 'Transaction Notifications',
+          channelDescription: 'Notifications for transaction updates',
+          defaultColor: const Color(0xFF2C1F63),
+          ledColor: Colors.white,
+          importance: NotificationImportance.High,
+          channelShowBadge: true,
+          enableVibration: true,
+          enableLights: true,
+        ),
+      ],
+    );
 
-    for (var transaction in transactions) {
-      if (transaction['isCredit'] == 1) {
-        balance += transaction['amount'] as double;
-      } else {
-        balance -= transaction['amount'] as double;
+    // Request permission to show notifications
+    await AwesomeNotifications().isNotificationAllowed().then((isAllowed) {
+      if (!isAllowed) {
+        AwesomeNotifications().requestPermissionToSendNotifications();
       }
-    }
-
-    setState(() {
-      totalBalance = balance;
     });
   }
 
+  String _formatAmount(double amount) {
+    return amount.toStringAsFixed(2);
+  }
+
   Future<void> _handleRefresh() async {
+    debugPrint('WalletScreen: Handling refresh...');
     final provider = context.read<WalletProvider>();
     await provider.refreshData();
-    await _loadTotalBalance();
+    debugPrint('WalletScreen: Refresh completed, transactions count: ${provider.transactions.length}');
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _handleEditTransaction(TransactionData transaction) async {
+    await showDialog(
+      context: context,
+      builder: (context) => TransactionForm(
+        initialData: transaction,
+        isEditing: true,
+        onSave: (updatedTransaction) async {
+          await context.read<WalletProvider>().updateTransaction(
+            transaction,
+            updatedTransaction,
+          );
+          if (mounted) {
+            Navigator.of(context).pop();
+          }
+        },
+        onClose: () {
+          Navigator.of(context).pop();
+        },
+      ),
+    );
+  }
+
+  Future<void> _handleDeleteTransaction(TransactionData transaction) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Transaction'),
+        content: Text('Are you sure you want to delete "${transaction.title}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.errorColor,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      await context.read<WalletProvider>().deleteTransaction(transaction);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<WalletProvider>(
-      builder: (context, provider, child) {
-        if (provider.isLoading) {
-          return Scaffold(
-            backgroundColor: Colors.grey.shade100,
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        return Scaffold(
-          backgroundColor: Colors.grey.shade100,
-          appBar: PreferredSize(
-            preferredSize: Size.fromHeight(120),
-            child: ClipRRect(
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(30),
-                bottomRight: Radius.circular(30),
-              ),
-              child: AppBar(
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                leading: IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.white),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-                title: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    "Wallet",
-                    style: TextStyle(color: Colors.white, fontSize: 24),
+    return Scaffold(
+      backgroundColor: Colors.grey.shade50,
+      appBar: AppBar(
+        backgroundColor: AppColors.secondary,
+        elevation: 0,
+        title: const Text(
+          'Wallet',
+          style: TextStyle(
+            color: AppColors.primary,
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications, color: AppColors.primary),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => NotificationsScreen(
+                    notifications: context.read<WalletProvider>().notifications,
+                    onNotificationRead: (id) async {
+                      await context.read<WalletProvider>().markNotificationAsRead(id);
+                    },
                   ),
                 ),
-                actions: [
-                  if (provider.needsSync)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8.0),
-                      child: IconButton(
-                        icon: const Icon(Icons.sync, color: Colors.white70),
-                        onPressed: () {
-                          provider.refreshData();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Syncing data...'),
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  Stack(
+              );
+            },
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Container(
+            color: AppColors.secondary,
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                WalletBalanceCard(formatAmount: _formatAmount),
+                const SizedBox(height: 24),
+                const WalletActions(),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
                     children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.notifications,
-                          color: Colors.white,
-                        ),
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (context) => const TestTransactionPage(),
-                            ),
-                          );
-
-                          // Navigator.push(
-                          //   context,
-                          //   MaterialPageRoute(
-                          //     builder: (context) => NotificationsScreen(
-                          //       notifications: provider.notifications,
-                          //       onNotificationRead: (String id) => provider.markNotificationAsRead(id),
-                          //     ),
-                          //   ),
-                          // );
-                        },
-                      ),
-                      if (provider.notifications.any((n) => !n.isRead))
-                        Positioned(
-                          right: 8,
-                          top: 8,
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() => selectedIndex = 0),
                           child: Container(
-                            padding: const EdgeInsets.all(2),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
                             decoration: BoxDecoration(
-                              color: Colors.red,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            constraints: const BoxConstraints(
-                              minWidth: 14,
-                              minHeight: 14,
+                              color: selectedIndex == 0
+                                  ? AppColors.secondary
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
-                              '${provider.notifications.where((n) => !n.isRead).length}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 8,
-                              ),
+                              'Transactions',
                               textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: selectedIndex == 0
+                                    ? AppColors.primary
+                                    : AppColors.textSecondary,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ),
-                    ],
-                  ),
-                ],
-                toolbarHeight: 120,
-              ),
-            ),
-          ),
-          body: RefreshIndicator(
-            onRefresh: _handleRefresh,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  WalletBalanceCard(
-                    balance: totalBalance,
-                    formatAmount: _formatAmount,
-                  ),
-                  if (provider.needsSync)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: Text(
-                        'Some changes haven\'t been synced yet',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 12,
-                        ),
                       ),
-                    ),
-                  const SizedBox(height: 20),
-                  WalletActions(
-                    onTransactionAdded: (transaction) {
-                      provider.addTransaction(transaction);
-                      _loadTotalBalance();
-                    },
-                    transactions: provider.transactions,
-                    upcomingBills: provider.upcomingBills,
-                  ),
-                  const SizedBox(height: 20),
-                  ToggleButtons(
-                    borderRadius: BorderRadius.circular(10),
-                    selectedColor: Colors.white,
-                    fillColor: Theme.of(context).colorScheme.primary,
-                    isSelected: [selectedIndex == 0, selectedIndex == 1],
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 10,
-                        ),
-                        child: Text("Transactions"),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 10,
-                        ),
-                        child: Text("Upcoming Bills"),
-                      ),
-                    ],
-                    onPressed: (int index) {
-                      setState(() => selectedIndex = index);
-                    },
-                  ),
-                  const SizedBox(height: 20),
-                  Expanded(
-                    child:
-                        selectedIndex == 0
-                            ? TransactionsList(
-                              transactions: provider.transactions,
-                              formatAmount: _formatAmount,
-                              onEdit:
-                                  (index, transaction) => showDialog(
-                                    context: context,
-                                    builder:
-                                        (context) => TransactionForm(
-                                          initialData: transaction,
-                                          isEditing: true,
-                                          onSave: (updatedTransaction) {
-                                            provider.updateTransaction(
-                                              transaction,
-                                              updatedTransaction,
-                                            );
-                                            _loadTotalBalance();
-                                            Navigator.of(context).pop();
-                                          },
-                                          onClose:
-                                              () => Navigator.of(context).pop(),
-                                        ),
-                                  ),
-                              onDelete:
-                                  (index, transaction) => showDialog(
-                                    context: context,
-                                    builder:
-                                        (context) => AlertDialog(
-                                          title: Text('Confirm Delete'),
-                                          content: Text(
-                                            'Are you sure you want to delete this transaction?',
-                                          ),
-                                          actions: [
-                                            TextButton(
-                                              onPressed:
-                                                  () =>
-                                                      Navigator.of(
-                                                        context,
-                                                      ).pop(),
-                                              child: Text('Cancel'),
-                                            ),
-                                            TextButton(
-                                              onPressed: () {
-                                                provider.deleteTransaction(
-                                                  transaction,
-                                                );
-                                                _loadTotalBalance();
-                                                Navigator.of(context).pop();
-                                              },
-                                              child: Text(
-                                                'Delete',
-                                                style: TextStyle(
-                                                  color: Colors.red,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                  ),
-                            )
-                            : UpcomingBillsList(
-                              upcomingBills: provider.upcomingBills,
-                              formatAmount: _formatAmount,
-                              onEdit:
-                                  (index, bill) => showDialog(
-                                    context: context,
-                                    builder:
-                                        (context) => TransactionForm(
-                                          initialData: bill,
-                                          isEditing: true,
-                                          onSave: (updatedBill) {
-                                            provider.updateTransaction(
-                                              bill,
-                                              updatedBill,
-                                            );
-                                            _loadTotalBalance();
-                                            Navigator.of(context).pop();
-                                          },
-                                          onClose:
-                                              () => Navigator.of(context).pop(),
-                                        ),
-                                  ),
-                              onDelete:
-                                  (index, bill) => showDialog(
-                                    context: context,
-                                    builder:
-                                        (context) => AlertDialog(
-                                          title: Text('Confirm Delete'),
-                                          content: Text(
-                                            'Are you sure you want to delete this bill?',
-                                          ),
-                                          actions: [
-                                            TextButton(
-                                              onPressed:
-                                                  () =>
-                                                      Navigator.of(
-                                                        context,
-                                                      ).pop(),
-                                              child: Text('Cancel'),
-                                            ),
-                                            TextButton(
-                                              onPressed: () {
-                                                provider.deleteTransaction(
-                                                  bill,
-                                                );
-                                                _loadTotalBalance();
-                                                Navigator.of(context).pop();
-                                              },
-                                              child: Text(
-                                                'Delete',
-                                                style: TextStyle(
-                                                  color: Colors.red,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                  ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() => selectedIndex = 1),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            decoration: BoxDecoration(
+                              color: selectedIndex == 1
+                                  ? AppColors.secondary
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
                             ),
+                            child: Text(
+                              'Upcoming Bills',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: selectedIndex == 1
+                                    ? AppColors.primary
+                                    : AppColors.textSecondary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: _handleRefresh,
+                    child: selectedIndex == 0
+                        ? TransactionsList(
+                            formatAmount: _formatAmount,
+                            onTransactionTap: (transaction) {
+                              _handleEditTransaction(transaction);
+                            },
+                            onEdit: (index, transaction) {
+                              _handleEditTransaction(transaction);
+                            },
+                            onDelete: (index, transaction) {
+                              _handleDeleteTransaction(transaction);
+                            },
+                          )
+                        : UpcomingBillsList(
+                            formatAmount: _formatAmount,
+                            onBillTap: (bill) {
+                              _handleEditTransaction(bill);
+                            },
+                            onEdit: (index, bill) {
+                              _handleEditTransaction(bill);
+                            },
+                            onDelete: (index, bill) {
+                              _handleDeleteTransaction(bill);
+                            },
+                          ),
+                  ),
+                ),
+              ],
             ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 }

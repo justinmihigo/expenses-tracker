@@ -1,6 +1,5 @@
 import "package:flutter/material.dart";
 import 'package:provider/provider.dart';
-import '../models/transaction.dart';
 import '../providers/wallet_provider.dart';
 import '../widgets/wallet/wallet_transaction_item.dart';
 import '../screens/notifications_screen.dart';
@@ -417,6 +416,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             date: transaction.date,
                             amount: "${transaction.isCredit ? "+" : "-"}${_formatAmount(transaction.amount)}",
                             isCredit: transaction.isCredit,
+                            category: transaction.category,
                           );
                         },
                       ),

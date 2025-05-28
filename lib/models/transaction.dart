@@ -17,7 +17,7 @@ enum TransactionCategory {
   education,
   shopping,
   travel,
-  otherExpense
+  others
 }
 
 class TransactionData {
@@ -42,6 +42,41 @@ class TransactionData {
   }) : id = id ?? const Uuid().v4(),
        scheduledDateStr = scheduledDate?.toIso8601String();
 
+  // Helper method to format date for storage
+  static String formatDateForStorage(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  // Helper method to parse stored date
+  static DateTime parseStoredDate(String dateStr) {
+    try {
+      return DateTime.parse(dateStr);
+    } catch (e) {
+      // Fallback for old format dates
+      final parts = dateStr.split('-');
+      if (parts.length == 3) {
+        return DateTime(
+          int.parse(parts[0]),
+          int.parse(parts[1]),
+          int.parse(parts[2]),
+        );
+      }
+      throw FormatException('Invalid date format: $dateStr');
+    }
+  }
+
+  // Helper method to format date for display
+  static String formatDateForDisplay(DateTime date) {
+    final months = {
+      1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun',
+      7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec'
+    };
+    return "${months[date.month]} ${date.day}, ${date.year}";
+  }
+
+  // Getter for parsed date
+  DateTime get parsedDate => parseStoredDate(date);
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -56,6 +91,20 @@ class TransactionData {
   }
 
   factory TransactionData.fromMap(Map<String, dynamic> map) {
+    final categoryStr = map['category'] as String?;
+    TransactionCategory category;
+    if (categoryStr != null) {
+      category = TransactionCategory.values.firstWhere(
+        (e) => e.toString().split('.').last == categoryStr,
+        orElse: () => TransactionCategory.others,
+      );
+    } else {
+      // For existing records without a category, determine based on isCredit
+      category = map['isCredit'] == 1 
+          ? TransactionCategory.otherIncome 
+          : TransactionCategory.others;
+    }
+
     return TransactionData(
       id: map['id'] as String,
       title: map['title'] as String,
@@ -63,10 +112,7 @@ class TransactionData {
       amount: (map['amount'] as num).toDouble(),
       isCredit: map['isCredit'] == 1,
       isScheduled: map['isScheduled'] == 1,
-      category: TransactionCategory.values.firstWhere(
-        (e) => e.toString().split('.').last == map['category'],
-        orElse: () => TransactionCategory.otherExpense,
-      ),
+      category: category,
       scheduledDate: map['scheduledDate'] != null 
           ? DateTime.parse(map['scheduledDate'] as String)
           : null,

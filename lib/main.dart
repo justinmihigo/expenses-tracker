@@ -17,7 +17,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'services/firebase_service.dart';
-import 'screens/budget_goals_screen.dart';
+
 
 final navigatorKey = GlobalKey<NavigatorState>();
 
@@ -69,14 +69,27 @@ Future<Map<String, dynamic>> initializeApp() async {
 }
 
 void main() async {
+  debugPrint('Initializing app...');
   final appState = await initializeApp();
+  debugPrint('App initialized with state: $appState');
   
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (context) => CounterProvider()),
-        ChangeNotifierProvider(create: (context) => WalletProvider()),
-        Provider(create: (context) => SecondScreen()),
+        ChangeNotifierProvider(create: (context) {
+          debugPrint('Creating CounterProvider...');
+          return CounterProvider();
+        }),
+        ChangeNotifierProvider(create: (context) {
+          debugPrint('Creating WalletProvider...');
+          final provider = WalletProvider();
+          debugPrint('WalletProvider created');
+          return provider;
+        }),
+        Provider(create: (context) {
+          debugPrint('Creating SecondScreen...');
+          return SecondScreen();
+        }),
       ],
       child: MyApp(appState: appState),
     ),
@@ -89,6 +102,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('Building MyApp...');
     final ThemeData appTheme = ThemeData(
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ButtonStyle(
@@ -127,25 +141,30 @@ class MyApp extends StatelessWidget {
     );
 
     return MaterialApp(
-      title: 'Expense tracker',
+      title: 'Expenses Tracker',
       debugShowCheckedModeBanner: false,
       navigatorKey: navigatorKey,
       routes: {SignupScreen.route: (context) => const SignupScreen()},
       theme: appTheme,
-      home: _getInitialScreen(),
+      home: Builder(
+        builder: (context) {
+          debugPrint('Building home widget...');
+          final walletProvider = context.watch<WalletProvider>();
+          debugPrint('WalletProvider state: ${walletProvider.transactions.length} transactions');
+          
+          if (!appState['hasSeenOnBoarding']) {
+            debugPrint('Showing onboarding screen...');
+            return const FirstScreen();
+          } else if (!appState['isLoggedIn']) {
+            debugPrint('Showing login screen...');
+            return const LoginScreen();
+          } else {
+            debugPrint('Showing main app screen...');
+            return const MyHomePage();
+          }
+        },
+      ),
     );
-  }
-
-  Widget _getInitialScreen() {
-    if (!appState['hasSeenOnBoarding']) {
-      return const FirstScreen();
-    }
-    
-    if (appState['isLoggedIn']) {
-      return MyHomePage();
-    }
-    
-    return const LoginScreen();
   }
 }
 
@@ -167,7 +186,6 @@ class _MyHomePageState extends State<MyHomePage> {
     {'screen': HomeScreen(), 'title': 'Dashboard'},
     {'screen': AnalyticsScreen(), 'title': 'Analytics'},
     {'screen': WalletScreen(), 'title': 'Wallet'},
-    {'screen': const BudgetGoalsScreen(), 'title': 'Budget Goals'},
     {'screen': SettingsScreen(), 'title': 'Settings'},
   ];
 
@@ -177,112 +195,50 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  Future<void> _logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isLoggedIn', false);
-    await prefs.remove('userEmail');
-    
-    if (mounted) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-        (route) => false,
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
-      bottomNavigationBar: Stack(
-        alignment: Alignment.center,
-        children: [
-          Container(
-            height: 80,
-            margin: const EdgeInsets.only(top: 30),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(32),
-                topRight: Radius.circular(32),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, -5),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildNavItem(0, Icons.home, 'Dashboard'),
-                _buildNavItem(1, Icons.analytics, 'Analytics'),
-                const SizedBox(width: 60),
-                _buildNavItem(2, Icons.wallet, 'Wallet'),
-                _buildNavItem(3, Icons.savings, 'Budget'),
-                _buildNavItem(4, Icons.person, 'Profile'),
-              ],
-            ),
+       backgroundColor: Colors.grey.shade50,
+      body: screens[currIndex]['screen'] as Widget, // The currently selected screen
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFFFFB800), // FAB background color
+        onPressed: _showAddTransaction,
+        child: const Icon(Icons.add, size: 32, color: Colors.black),
+        elevation: 8.0, // FAB shadow
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked, // Docks FAB in the center of BottomNavigationBar
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: currIndex, // Highlights the current tab
+        onTap: (index) {
+          setState(() {
+            currIndex = index; // Updates the selected tab index
+          });
+        },
+        backgroundColor: Colors.white, // Background color of the navigation bar
+        selectedItemColor: const Color(0xFF2C1F63), // Color of the selected item's icon and text
+        unselectedItemColor: Colors.grey.shade600, // Color of unselected items' icons and text
+        type: BottomNavigationBarType.fixed, // Ensures items are evenly spaced and labels are always visible
+        showUnselectedLabels: true, // Makes sure labels for unselected items are visible
+        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 12),
+        items: const <BottomNavigationBarItem>[
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'Home',
           ),
-          Positioned(
-            top: 0,
-            child: Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFB800),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.15),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: IconButton(
-                icon: const Icon(
-                  Icons.add,
-                  size: 32,
-                  color: Colors.black,
-                ),
-                onPressed: _showAddTransaction,
-              ),
-            ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.analytics),
+            label: 'Analytics',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.account_balance_wallet), // Changed to a more common wallet icon
+            label: 'Wallet',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline), // Changed to a common settings/profile icon
+            label: 'Settings',
           ),
         ],
-      ),
-      body: Container(child: screens[currIndex]['screen']),
-    );
-  }
-
-  Widget _buildNavItem(int index, IconData icon, String label) {
-    final isSelected = currIndex == index;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => setState(() => currIndex = index),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 24,
-              color: isSelected ? const Color(0xFF2C1F63) : Colors.grey.shade400,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                color: isSelected ? const Color(0xFF2C1F63) : Colors.grey.shade600,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
