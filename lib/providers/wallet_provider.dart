@@ -4,12 +4,16 @@ import '../models/notification.dart';
 import '../models/transaction.dart';
 import '../sqlite.dart';
 import '../services/notification_service.dart';
+import '../services/wallet_service.dart';
 import 'package:expenses_tracker/models/budget_goal.dart';
 import 'package:expenses_tracker/models/wallet_data.dart';
+import 'package:expenses_tracker/repositories/wallet_repository.dart';
 
 class WalletProvider extends ChangeNotifier {
+  final WalletRepository _repository = WalletRepository();
+  final NotificationService _notificationService = NotificationService();
+  final WalletService _walletService = WalletService();
   final _db = SQLiteDB.instance;
-  final _notificationService = NotificationService();
   
   List<TransactionData> _transactions = [];
   List<TransactionData> _upcomingBills = [];
@@ -140,18 +144,23 @@ class WalletProvider extends ChangeNotifier {
 
   Future<void> deleteTransaction(TransactionData transaction) async {
     try {
-      await _db.deleteTransaction(transaction.id);
+      debugPrint('Deleting transaction: ${transaction.id}');
+      await WalletService.deleteTransaction(transaction);
+      debugPrint('Transaction deleted successfully from database');
       
       if (transaction.isScheduled) {
         _upcomingBills.removeWhere((t) => t.id == transaction.id);
       } else {
         _transactions.removeWhere((t) => t.id == transaction.id);
-        _updateTotalBalance(-transaction.amount * (transaction.isCredit ? 1 : -1));
+        _totalBalance = await _repository.getTotalBalance();
       }
       
       notifyListeners();
-    } catch (e) {
+      debugPrint('Notified listeners after deleting transaction');
+    } catch (e, stackTrace) {
       debugPrint('Error deleting transaction: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
     }
   }
 

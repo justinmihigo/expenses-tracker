@@ -207,7 +207,7 @@ class _TransactionFormState extends State<TransactionForm> {
                       ),
                     const SizedBox(height: 20),
                     ElevatedButton(
-                      onPressed: () {
+                      onPressed: () async {
                         if (_formKey.currentState?.validate() ?? false) {
                           if (isScheduled && scheduledDate == null) {
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -219,6 +219,7 @@ class _TransactionFormState extends State<TransactionForm> {
                           final dateString = isScheduled ? _formatDate(scheduledDate!) : "Today";
 
                           final transaction = TransactionData(
+                            id: widget.initialData?.id,
                             title: title,
                             date: dateString,
                             amount: amount,
@@ -228,6 +229,8 @@ class _TransactionFormState extends State<TransactionForm> {
                             category: category,
                           );
 
+                          widget.onClose();
+                          
                           widget.onSave(transaction);
 
                           if (!widget.isEditing) {
@@ -241,8 +244,14 @@ class _TransactionFormState extends State<TransactionForm> {
                                 backgroundColor: Colors.green,
                               ),
                             );
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Transaction updated successfully"),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
                           }
-                          widget.onClose();
                         }
                       },
                       style: ElevatedButton.styleFrom(

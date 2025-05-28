@@ -121,9 +121,6 @@ class _WalletScreenState extends State<WalletScreen> {
             transaction,
             updatedTransaction,
           );
-          if (mounted) {
-            Navigator.of(context).pop();
-          }
         },
         onClose: () {
           Navigator.of(context).pop();

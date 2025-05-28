@@ -63,7 +63,7 @@ class TransactionsList extends StatelessWidget {
                     vertical: 8.0,
                   ),
                   child: Text(
-                    _formatDate(date),
+                    TransactionData.formatDateForDisplay(date),
                     style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 14,
@@ -71,10 +71,49 @@ class TransactionsList extends StatelessWidget {
                     ),
                   ),
                 ),
-                ...dateTransactions.map((transaction) => _buildTransactionItem(
-                  context,
-                  transaction,
-                  dateTransactions.indexOf(transaction),
+                ...dateTransactions.map((transaction) => Dismissible(
+                  key: ValueKey<String>(transaction.id),
+                  direction: DismissDirection.endToStart,
+                  confirmDismiss: (direction) async {
+                    return await showDialog(
+                      context: context,
+                      builder: (BuildContext context) {
+                        return AlertDialog(
+                          title: const Text('Delete Transaction'),
+                          content: const Text('Are you sure you want to delete this transaction?'),
+                          actions: <Widget>[
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(false),
+                              child: const Text('Cancel'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(true),
+                              child: const Text('Delete'),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                  onDismissed: (direction) {
+                    if (onDelete != null) {
+                      onDelete!(dateTransactions.indexOf(transaction), transaction);
+                    }
+                  },
+                  background: Container(
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20.0),
+                    color: AppColors.errorColor,
+                    child: const Icon(
+                      Icons.delete,
+                      color: Colors.white,
+                    ),
+                  ),
+                  child: _buildTransactionItem(
+                    context,
+                    transaction,
+                    dateTransactions.indexOf(transaction),
+                  ),
                 )),
               ],
             );
@@ -144,33 +183,8 @@ class TransactionsList extends StatelessWidget {
     );
   }
 
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-
-    if (date == today) {
-      return 'Today';
-    } else if (date == yesterday) {
-      return 'Yesterday';
-    } else {
-      return TransactionData.formatDateForDisplay(date);
-    }
-  }
-
   String _formatTime(DateTime date) {
-    // Get the current time for the transaction
-    final now = DateTime.now();
-    final transactionTime = DateTime(
-      date.year,
-      date.month,
-      date.day,
-      now.hour,
-      now.minute,
-    );
-    
-    // Format as HH:mm
-    return '${transactionTime.hour.toString().padLeft(2, '0')}:${transactionTime.minute.toString().padLeft(2, '0')}';
+    return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 
   IconData _getCategoryIcon(TransactionCategory category) {

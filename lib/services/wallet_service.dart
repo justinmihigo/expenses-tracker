@@ -2,9 +2,11 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/wallet_data.dart';
 import '../models/transaction.dart';
+import '../sqlite.dart';
 
 class WalletService {
   static const String _walletKey = 'wallet_data';
+  static final SQLiteDB _db = SQLiteDB.instance;
 
   static Future<WalletData> loadWalletData() async {
     final prefs = await SharedPreferences.getInstance();
@@ -79,60 +81,81 @@ class WalletService {
   }
 
   static Future<void> updateTransaction(TransactionData oldTransaction, TransactionData newTransaction) async {
-    final walletData = await loadWalletData();
-    final updatedTransactions = List<TransactionData>.from(walletData.transactions);
-    final updatedBills = List<TransactionData>.from(walletData.upcomingBills);
-    
-    // Remove old transaction
-    if (oldTransaction.isScheduled) {
-      updatedBills.removeWhere((t) => t.title == oldTransaction.title && t.date == oldTransaction.date);
-    } else {
-      updatedTransactions.removeWhere((t) => t.title == oldTransaction.title && t.date == oldTransaction.date);
+    try {
+      // Update in SQLite
+      await _db.updateTransaction(oldTransaction.id, newTransaction.toMap());
+      
+      // Update total balance in SQLite
+      final currentBalance = await _db.getTotalBalance();
+      final oldAmount = oldTransaction.isCredit ? oldTransaction.amount : -oldTransaction.amount;
+      final newAmount = newTransaction.isCredit ? newTransaction.amount : -newTransaction.amount;
+      final balanceDiff = newAmount - oldAmount;
+      final newBalance = currentBalance + balanceDiff;
+      await _db.updateTotalBalance(newBalance);
+      
+      // Also update SharedPreferences for backward compatibility
+      final walletData = await loadWalletData();
+      final updatedTransactions = List<TransactionData>.from(walletData.transactions);
+      final updatedBills = List<TransactionData>.from(walletData.upcomingBills);
+      
+      // Remove old transaction using ID
+      if (oldTransaction.isScheduled) {
+        updatedBills.removeWhere((t) => t.id == oldTransaction.id);
+      } else {
+        updatedTransactions.removeWhere((t) => t.id == oldTransaction.id);
+      }
+
+      // Add new transaction
+      if (newTransaction.isScheduled) {
+        updatedBills.add(newTransaction);
+      } else {
+        updatedTransactions.add(newTransaction);
+      }
+
+      final updatedWalletData = WalletData(
+        totalBalance: newBalance,
+        transactions: updatedTransactions,
+        upcomingBills: updatedBills,
+      );
+
+      await saveWalletData(updatedWalletData);
+    } catch (e) {
+      print('Error updating transaction: $e');
+      rethrow;
     }
-
-    // Add new transaction
-    if (newTransaction.isScheduled) {
-      updatedBills.add(newTransaction);
-    } else {
-      updatedTransactions.add(newTransaction);
-    }
-
-    // Calculate new balance from all transactions
-    double newBalance = updatedTransactions.fold(0.0, (sum, t) {
-      return sum + (t.isCredit ? t.amount : -t.amount);
-    });
-
-    final updatedWalletData = WalletData(
-      totalBalance: newBalance,
-      transactions: updatedTransactions,
-      upcomingBills: updatedBills,
-    );
-
-    await saveWalletData(updatedWalletData);
   }
 
   static Future<void> deleteTransaction(TransactionData transaction) async {
-    final walletData = await loadWalletData();
-    final updatedTransactions = List<TransactionData>.from(walletData.transactions);
-    final updatedBills = List<TransactionData>.from(walletData.upcomingBills);
-    
-    if (transaction.isScheduled) {
-      updatedBills.removeWhere((t) => t.title == transaction.title && t.date == transaction.date);
-    } else {
-      updatedTransactions.removeWhere((t) => t.title == transaction.title && t.date == transaction.date);
+    try {
+      // Delete from SQLite
+      await _db.deleteTransaction(transaction.id);
+      
+      // Update total balance in SQLite
+      final currentBalance = await _db.getTotalBalance();
+      final newBalance = currentBalance - (transaction.isCredit ? transaction.amount : -transaction.amount);
+      await _db.updateTotalBalance(newBalance);
+      
+      // Also update SharedPreferences for backward compatibility
+      final walletData = await loadWalletData();
+      final updatedTransactions = List<TransactionData>.from(walletData.transactions);
+      final updatedBills = List<TransactionData>.from(walletData.upcomingBills);
+      
+      if (transaction.isScheduled) {
+        updatedBills.removeWhere((t) => t.id == transaction.id);
+      } else {
+        updatedTransactions.removeWhere((t) => t.id == transaction.id);
+      }
+
+      final updatedWalletData = WalletData(
+        totalBalance: newBalance,
+        transactions: updatedTransactions,
+        upcomingBills: updatedBills,
+      );
+
+      await saveWalletData(updatedWalletData);
+    } catch (e) {
+      print('Error deleting transaction: $e');
+      rethrow;
     }
-
-    // Calculate new balance from all transactions
-    double newBalance = updatedTransactions.fold(0.0, (sum, t) {
-      return sum + (t.isCredit ? t.amount : -t.amount);
-    });
-
-    final updatedWalletData = WalletData(
-      totalBalance: newBalance,
-      transactions: updatedTransactions,
-      upcomingBills: updatedBills,
-    );
-
-    await saveWalletData(updatedWalletData);
   }
 } 

@@ -42,40 +42,66 @@ class TransactionData {
   }) : id = id ?? const Uuid().v4(),
        scheduledDateStr = scheduledDate?.toIso8601String();
 
-  // Helper method to format date for storage
   static String formatDateForStorage(DateTime date) {
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    // Always store in ISO format to avoid ambiguity
+    return date.toIso8601String();
   }
 
-  // Helper method to parse stored date
   static DateTime parseStoredDate(String dateStr) {
     try {
+      // First try parsing as ISO format
       return DateTime.parse(dateStr);
     } catch (e) {
-      // Fallback for old format dates
-      final parts = dateStr.split('-');
-      if (parts.length == 3) {
-        return DateTime(
-          int.parse(parts[0]),
-          int.parse(parts[1]),
-          int.parse(parts[2]),
-        );
+      // If parsing fails, handle special cases
+      if (dateStr == "Today") {
+        return DateTime.now();
+      } else if (dateStr == "Yesterday") {
+        return DateTime.now().subtract(const Duration(days: 1));
       }
-      throw FormatException('Invalid date format: $dateStr');
+      // Try parsing as MMM DD, YYYY format
+      final months = {
+        'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+        'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
+      };
+      
+      final parts = dateStr.split(' ');
+      if (parts.length == 3) {
+        final month = months[parts[0]] ?? 1;
+        final day = int.parse(parts[1].replaceAll(',', ''));
+        final year = int.parse(parts[2]);
+        return DateTime(year, month, day);
+      }
+      // If all parsing fails, return current date
+      return DateTime.now();
     }
   }
 
-  // Helper method to format date for display
   static String formatDateForDisplay(DateTime date) {
-    final months = {
-      1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun',
-      7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec'
-    };
-    return "${months[date.month]} ${date.day}, ${date.year}";
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final dateOnly = DateTime(date.year, date.month, date.day);
+
+    if (dateOnly == today) {
+      return 'Today';
+    } else if (dateOnly == yesterday) {
+      return 'Yesterday';
+    } else {
+      return '${_getMonthName(date.month)} ${date.day}, ${date.year}';
+    }
   }
 
-  // Getter for parsed date
+  static String _getMonthName(int month) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return months[month - 1];
+  }
+
   DateTime get parsedDate => parseStoredDate(date);
+  DateTime? get parsedScheduledDate => 
+    scheduledDateStr != null ? parseStoredDate(scheduledDateStr!) : null;
 
   Map<String, dynamic> toMap() {
     return {

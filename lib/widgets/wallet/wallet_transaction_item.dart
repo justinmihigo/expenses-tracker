@@ -21,6 +21,15 @@ class WalletTransactionItem extends StatelessWidget {
     super.key,
   });
 
+  String _formatDisplayDate(String dateStr) {
+    try {
+      final date = TransactionData.parseStoredDate(dateStr);
+      return TransactionData.formatDateForDisplay(date);
+    } catch (e) {
+      return dateStr; // Fallback to original string if parsing fails
+    }
+  }
+
   IconData _getCategoryIcon() {
     if (isCredit) {
       switch (category) {
@@ -109,10 +118,10 @@ class WalletTransactionItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    debugPrint('WalletTransactionItem: Building item for $title');
     final categoryColor = _getCategoryColor();
     final categoryIcon = _getCategoryIcon();
     final categoryName = _getCategoryName();
+    final displayDate = _formatDisplayDate(date);
 
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
@@ -135,6 +144,7 @@ class WalletTransactionItem extends StatelessWidget {
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     title,
@@ -142,19 +152,21 @@ class WalletTransactionItem extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                       fontSize: 16,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  Row(
+                  Wrap(
+                    spacing: 8,
                     children: [
                       Text(
-                        date,
+                        displayDate,
                         style: TextStyle(
                           color: Colors.grey.shade600,
                           fontSize: 14,
                         ),
                       ),
-                      if (categoryName.isNotEmpty) ...[
-                        const SizedBox(width: 8),
+                      if (categoryName.isNotEmpty)
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
@@ -170,14 +182,15 @@ class WalletTransactionItem extends StatelessWidget {
                             ),
                           ),
                         ),
-                      ],
                     ],
                   ),
                 ],
               ),
             ),
+            const SizedBox(width: 8),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   amount,
@@ -190,39 +203,35 @@ class WalletTransactionItem extends StatelessWidget {
               ],
             ),
             if (onEdit != null || onDelete != null)
-              PopupMenuButton<String>(
+              IconButton(
                 icon: Icon(Icons.more_vert, color: Colors.grey.shade600),
-                itemBuilder: (context) => [
-                  if (onEdit != null)
-                    const PopupMenuItem(
-                      value: 'edit',
-                      child: Row(
-                        children: [
-                          Icon(Icons.edit, size: 20),
-                          SizedBox(width: 8),
-                          Text('Edit'),
-                        ],
-                      ),
+                onPressed: () {
+                  showModalBottomSheet(
+                    context: context,
+                    builder: (context) => Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (onEdit != null)
+                          ListTile(
+                            leading: const Icon(Icons.edit),
+                            title: const Text('Edit'),
+                            onTap: () {
+                              Navigator.pop(context);
+                              onEdit!();
+                            },
+                          ),
+                        if (onDelete != null)
+                          ListTile(
+                            leading: const Icon(Icons.delete, color: Colors.red),
+                            title: const Text('Delete', style: TextStyle(color: Colors.red)),
+                            onTap: () {
+                              Navigator.pop(context);
+                              onDelete!();
+                            },
+                          ),
+                      ],
                     ),
-                  if (onDelete != null)
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(Icons.delete, size: 20, color: Colors.red),
-                          SizedBox(width: 8),
-                          Text('Delete', style: TextStyle(color: Colors.red)),
-                        ],
-                      ),
-                    ),
-                ],
-                onSelected: (value) {
-                  debugPrint('WalletTransactionItem: Menu item selected: $value');
-                  if (value == 'edit' && onEdit != null) {
-                    onEdit!();
-                  } else if (value == 'delete' && onDelete != null) {
-                    onDelete!();
-                  }
+                  );
                 },
               ),
           ],

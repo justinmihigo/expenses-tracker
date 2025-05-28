@@ -74,10 +74,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Row(
               children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Color(0xFF2C1F63)),
-                  onPressed: () => Navigator.pop(context),
-                ),
+               
                 const Text(
                   'Settings',
                   style: TextStyle(
@@ -108,33 +105,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: TextStyle(color: Colors.grey.shade600),
             ),
           ),
-          const Divider(),
+          // const Divider(),
           
-          // Appearance Section
-          const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Text(
-              'Appearance',
-              style: TextStyle(
-                color: Color(0xFF2C1F63),
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-          ),
-          SwitchListTile(
-            title: const Text('Dark Mode'),
-            subtitle: const Text('Enable dark theme'),
-            value: isDarkMode,
-            onChanged: (value) {
-              setState(() {
-                isDarkMode = value;
-                _saveSettings();
-              });
-            },
-            activeColor: const Color(0xFF2C1F63),
-          ),
-          const Divider(),
+          // // Appearance Section
+          // const Padding(
+          //   padding: EdgeInsets.all(16.0),
+          //   child: Text(
+          //     'Appearance',
+          //     style: TextStyle(
+          //       color: Color(0xFF2C1F63),
+          //       fontWeight: FontWeight.bold,
+          //       fontSize: 16,
+          //     ),
+          //   ),
+          // ),
+          // SwitchListTile(
+          //   title: const Text('Dark Mode'),
+          //   subtitle: const Text('Enable dark theme'),
+          //   value: isDarkMode,
+          //   onChanged: (value) {
+          //     setState(() {
+          //       isDarkMode = value;
+          //       _saveSettings();
+          //     });
+          //   },
+          //   activeColor: const Color(0xFF2C1F63),
+          // ),
+          // const Divider(),
 
           // Notifications Section
           const Padding(

@@ -4,6 +4,7 @@ import '../providers/wallet_provider.dart';
 import '../widgets/wallet/wallet_transaction_item.dart';
 import '../screens/notifications_screen.dart';
 import '../sqlite.dart';
+import '../models/transaction.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -97,13 +98,14 @@ class _HomeScreenState extends State<HomeScreen> {
             .fold(0.0, (sum, t) => sum + t.amount);
 
         // Get recent transactions
-        final recentTransactions = List.from(provider.transactions)
-          ..sort((a, b) {
-            final dateA = _parseDate(a.date);
-            final dateB = _parseDate(b.date);
-            return dateB.compareTo(dateA);
-          })
-          ..take(5).toList();
+        final recentTransactions = provider.transactions.isEmpty ? [] : 
+          List.from(provider.transactions)
+            ..sort((a, b) {
+              final dateA = a.parsedDate;
+              final dateB = b.parsedDate;
+              return dateB.compareTo(dateA);
+            })
+            ..take(5).toList();
 
         return Scaffold(
           backgroundColor: Colors.grey.shade50,
@@ -405,21 +407,35 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 16),
 
                       // Transaction List
-                      ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: recentTransactions.length,
-                        itemBuilder: (context, index) {
-                          final transaction = recentTransactions[index];
-                          return WalletTransactionItem(
-                            title: transaction.title,
-                            date: transaction.date,
-                            amount: "${transaction.isCredit ? "+" : "-"}${_formatAmount(transaction.amount)}",
-                            isCredit: transaction.isCredit,
-                            category: transaction.category,
-                          );
-                        },
-                      ),
+                      if (recentTransactions.isEmpty)
+                        Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Text(
+                              'No recent transactions',
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                        )
+                      else
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: recentTransactions.length,
+                          itemBuilder: (context, index) {
+                            final transaction = recentTransactions[index];
+                            return WalletTransactionItem(
+                              title: transaction.title,
+                              date: TransactionData.formatDateForDisplay(transaction.parsedDate),
+                              amount: "${transaction.isCredit ? "+" : "-"}${_formatAmount(transaction.amount)}",
+                              isCredit: transaction.isCredit,
+                              category: transaction.category,
+                            );
+                          },
+                        ),
                     ],
                   ),
                 ),
